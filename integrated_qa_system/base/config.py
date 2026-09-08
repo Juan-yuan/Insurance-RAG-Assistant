@@ -1,6 +1,7 @@
 # This script is used for: configuration file management.
 
 # Imports
+import ast
 import configparser                 # Import config file parser library, parse INI-format config files.
 import os                           # Import path operation module
 
@@ -27,109 +28,84 @@ config_file_path = os.path.join(project_root, 'config.ini')
 class Config:
     # todo 2.1 Initializer: read the config file and parse config parameters for each service.
     def __init__(self, config_file=config_file_path):
-        # 1. Create a config file parser instance.
-        self.config = configparser.ConfigParser()
-        # 2. Read the config file -> load ini file content according to the given path.
+        # Project paths
+        self.PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.LOG_DIR = os.path.join(self.PROJECT_ROOT, 'logs')
+        self.DATA_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/data')
+        self.MODELS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/models')
+        self.EDU_DOCUMENT_LOADERS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/edu_document_loaders')
+
+        # If no config file path is provided, use the default path.
+        if not config_file:
+            config_file = os.path.join(self.PROJECT_ROOT, 'config.ini')
+
+        # Create a config parser with interpolation enabled, then read the ini file once.
+        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         self.config.read(config_file, encoding='utf-8')
 
-        # 3. Parse and store config parameters for each service.
-        # 3.1 Parse MySQL database config.
-        self.MYSQL_HOST = self.config.get('mysql', 'host', fallback='localhost')
-        self.MYSQL_USER = self.config.get('mysql', 'user', fallback='root')
-        self.MYSQL_PASSWORD = self.config.get('mysql', 'password', fallback='123456')
-        self.MYSQL_DATABASE = self.config.get('mysql', 'database', fallback='subjects_kg')
+        # MySQL config (environment variables override ini)
+        # MySQL host address
+        self.MYSQL_HOST = os.getenv('MYSQL_HOST', self.config.get('mysql', 'host', fallback='localhost'))
+        # MySQL username
+        self.MYSQL_USER = os.getenv('MYSQL_USER', self.config.get('mysql', 'user', fallback='root'))
+        # MySQL password
+        self.MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', self.config.get('mysql', 'password', fallback='123456'))
+        # MySQL database name
+        self.MYSQL_DATABASE = os.getenv('MYSQL_DATABASE',
+                                        self.config.get('mysql', 'database', fallback='subjects_kg'))
 
-        # 3.2 Parse Redis database config.
-        self.REDIS_HOST = self.config.get('redis', 'host', fallback='localhost')
-        self.REDIS_PORT = self.config.getint('redis', 'port', fallback=8379)
-        self.REDIS_PASSWORD = self.config.get('redis', 'password', fallback='1234')
-        self.REDIS_DB = self.config.getint('redis', 'db', fallback=0)
+        # Redis config. Docker maps container 6379 to host 8379.
+        # Redis host address
+        self.REDIS_HOST = os.getenv('REDIS_HOST', self.config.get('redis', 'host', fallback='localhost'))
+        # Redis port
+        self.REDIS_PORT = int(os.getenv('REDIS_PORT') or self.config.get('redis', 'port', fallback='8379'))
+        # Redis password
+        self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', self.config.get('redis', 'password', fallback='1234'))
+        # Redis database index
+        self.REDIS_DB = int(os.getenv('REDIS_DB') or self.config.get('redis', 'db', fallback='0'))
 
-        # 3.3 Parse logger config.
-        # Log file path: get from the log_file key of the [logger] section, default: logs/app.log
+        # Milvus config
+        # Milvus host address
+        self.MILVUS_HOST = os.getenv('MILVUS_HOST', self.config.get('milvus', 'host', fallback='localhost'))
+        # Milvus port
+        self.MILVUS_PORT = os.getenv('MILVUS_PORT', self.config.get('milvus', 'port', fallback='19530'))
+        # Milvus database name
+        self.MILVUS_DATABASE_NAME = os.getenv('MILVUS_DATABASE_NAME',
+                                              self.config.get('milvus', 'database_name', fallback='itcast'))
+        # Milvus collection name
+        self.MILVUS_COLLECTION_NAME = os.getenv('MILVUS_COLLECTION_NAME',
+                                                self.config.get('milvus', 'collection_name',
+                                                                fallback='edurag_final'))
+
+        # OpenAI LLM model
+        self.LLM_MODEL = self.config.get('llm', 'model', fallback='gpt-5-mini')
+        # OpenAI API key
+        self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', self.config.get('llm', 'openai_api_key',
+                                                                          fallback='remember to replace with your OpenAI API key'))
+        # OpenAI API base URL
+        self.OPENAI_BASE_URL = self.config.get('llm', 'openai_base_url', fallback='https://api.openai.com/v1')
+
+        # Retrieval parameters
+        # Parent chunk size
+        self.PARENT_CHUNK_SIZE = self.config.getint('retrieval', 'parent_chunk_size', fallback=1200)
+        # Child chunk size
+        self.CHILD_CHUNK_SIZE = self.config.getint('retrieval', 'child_chunk_size', fallback=300)
+        # Chunk overlap size
+        self.CHUNK_OVERLAP = self.config.getint('retrieval', 'chunk_overlap', fallback=50)
+        # Number of retrieved results
+        self.RETRIEVAL_K = self.config.getint('retrieval', 'retrieval_k', fallback=5)
+        # Number of final candidates
+        self.CANDIDATE_M = self.config.getint('retrieval', 'candidate_m', fallback=2)
+
+        # App config
+        # List of valid sources
+        self.VALID_SOURCES = ast.literal_eval(
+            self.config.get('app', 'valid_sources', fallback='["ai", "java", "test", "ops", "bigdata"]'))
+        # Customer service phone
+        self.CUSTOMER_SERVICE_PHONE = self.config.get('app', 'customer_service_phone', fallback='13112345678')
+
+        # Log file path (relative, so logger.py can join it with the project root)
         self.LOG_FILE = self.config.get('logger', 'log_file', fallback='logs/app.log')
-
-
-        # # Create a config parser with interpolation enabled
-        # self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-        # # If no config file path is provided, use the default path
-        # self.PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
-        #
-        # self.LOG_DIR = os.path.join(self.PROJECT_ROOT, 'logs')
-        # self.DATA_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/data')
-        # self.MODELS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/models')
-        # self.EDU_DOCUMENT_LOADERS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/edu_document_loaders')
-        #
-        # if config_file is None:
-        #     config_file = os.path.join(self.PROJECT_ROOT, 'config.ini')
-        # # Read the config file
-        # self.config.read(config_file, encoding='utf-8')
-        #
-        # # MySQL config
-        # # MySQL host address
-        # self.MYSQL_HOST = os.getenv('MYSQL_HOST', self.config.get('mysql', 'host', fallback='localhost'))
-        # # MySQL username
-        # self.MYSQL_USER = os.getenv('MYSQL_USER', self.config.get('mysql', 'user', fallback='root'))
-        # # MySQL password
-        # self.MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', self.config.get('mysql', 'password', fallback='123456'))
-        # # MySQL database name
-        # self.MYSQL_DATABASE = os.getenv('MYSQL_DATABASE',
-        #                                 self.config.get('mysql', 'database', fallback='subjects_kg'))
-        #
-        # # Redis config
-        # # Redis host address
-        # self.REDIS_HOST = os.getenv('REDIS_HOST', self.config.get('redis', 'host', fallback='localhost'))
-        # # Redis port
-        # self.REDIS_PORT = int(os.getenv('REDIS_PORT', self.config.get('redis', 'port', fallback=6379)))
-        # # Redis password
-        # self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', self.config.get('redis', 'password', fallback='1234'))
-        # # Redis database index
-        # self.REDIS_DB = int(os.getenv('REDIS_DB', self.config.get('redis', 'db', fallback=0)))
-        #
-        # # Milvus config
-        # # Milvus host address
-        # self.MILVUS_HOST = os.getenv('MILVUS_HOST', self.config.get('milvus', 'host', fallback='localhost'))
-        # # Milvus port
-        # self.MILVUS_PORT = os.getenv('MILVUS_PORT', self.config.get('milvus', 'port', fallback='19530'))
-        # # Milvus database name
-        # self.MILVUS_DATABASE_NAME = os.getenv('MILVUS_DATABASE_NAME',
-        #                                       self.config.get('milvus', 'database_name', fallback='itcast'))
-        # # Milvus collection name
-        # self.MILVUS_COLLECTION_NAME = os.getenv('MILVUS_COLLECTION_NAME',
-        #                                         self.config.get('milvus', 'collection_name',
-        #                                                         fallback='edurag_final'))
-        #
-        # # LLM config
-        # # LLM model name
-        # self.LLM_MODEL = self.config.get('llm', 'model', fallback='qwen-plus')
-        # # DashScope API key
-        # self.DASHSCOPE_API_KEY = os.getenv('DASHSCOPE_API_KEY', self.config.get('llm', 'dashscope_api_key',
-        #                                                                         fallback='remember to replace with your API key'))
-        # # DashScope API URL
-        # self.DASHSCOPE_BASE_URL = self.config.get('llm', 'dashscope_base_url',
-        #                                           fallback='https://dashscope.aliyuncs.com/compatible-mode/v1')
-        #
-        # # Retrieval parameters
-        # # Parent chunk size
-        # self.PARENT_CHUNK_SIZE = self.config.getint('retrieval', 'parent_chunk_size', fallback=1200)
-        # # Child chunk size
-        # self.CHILD_CHUNK_SIZE = self.config.getint('retrieval', 'child_chunk_size', fallback=300)
-        # # Chunk overlap size
-        # self.CHUNK_OVERLAP = self.config.getint('retrieval', 'chunk_overlap', fallback=50)
-        # # Number of retrieved results
-        # self.RETRIEVAL_K = self.config.getint('retrieval', 'retrieval_k', fallback=5)
-        # # Number of final candidates
-        # self.CANDIDATE_M = self.config.getint('retrieval', 'candidate_m', fallback=2)
-        #
-        # # App config
-        # # List of valid sources
-        # self.VALID_SOURCES = eval(
-        #     self.config.get('app', 'valid_sources', fallback='["ai", "java", "test", "ops", "bigdata"]'))
-        # # Customer service phone
-        # self.CUSTOMER_SERVICE_PHONE = self.config.get('app', 'customer_service_phone', fallback='13112345678')
-        #
-        # # Log file path
-        # self.LOG_FILE = os.path.join(self.LOG_DIR, 'app.log')
 
 # Extension: create an instance of the Config class.
 config = Config()
