@@ -41,9 +41,9 @@ class Config:
 
         # 3.2 Parse Redis database config.
         self.REDIS_HOST = self.config.get('redis', 'host', fallback='localhost')
-        self.REDIS_PORT = self.config.get('redis', 'port', fallback=6379)
+        self.REDIS_PORT = self.config.getint('redis', 'port', fallback=8379)
         self.REDIS_PASSWORD = self.config.get('redis', 'password', fallback='1234')
-        self.REDIS_DB = self.config.get('redis', 'db', fallback=0)
+        self.REDIS_DB = self.config.getint('redis', 'db', fallback=0)
 
         # 3.3 Parse logger config.
         # Log file path: get from the log_file key of the [logger] section, default: logs/app.log
