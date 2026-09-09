@@ -81,7 +81,7 @@ class Config:
         self.LLM_MODEL = self.config.get('llm', 'model', fallback='gpt-5-mini')
         # OpenAI API key
         self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', self.config.get('llm', 'openai_api_key',
-                                                                          fallback='remember to replace with your OpenAI API key'))
+                                                                          fallback='OpenAI API key'))
         # OpenAI API base URL
         self.OPENAI_BASE_URL = self.config.get('llm', 'openai_base_url', fallback='https://api.openai.com/v1')
 
