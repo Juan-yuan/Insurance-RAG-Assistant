@@ -19,20 +19,18 @@ def operate_db():
     # client = MilvusClient(uri='http://127.0.0.1:19530')
     client = MilvusClient(uri='http://localhost:19530')
 
-    # 2. Handle the 'milvus_demo' database
+    # 2. Handle the 'edurag' database
     # 2.1 Get the current database list -> similar to: MySQL SHOW DATABASES;
     databases = client.list_databases()
-    # print(f'Current database list: {databases}')      # ['default', 'itcast']
+    # print(f'Current database list: {databases}')      # ['default', 'edurag']
 
-    # 2.2 Check whether 'milvus_demo' exists.
-    if 'milvus_demo' not in databases:
+    # 2.2 Check whether 'edurag' exists.
+    if 'edurag' not in databases:
         # Does not exist, so create the database.
-        client.create_database(db_name='milvus_demo')
-        print('Created database: milvus_demo successfully')
-    else:
-        # Exists, so use the database.
-        client.using_database(db_name='milvus_demo')
-        print('Using database: milvus_demo successfully')
+        client.create_database(db_name='edurag')
+        print('Created database: edurag successfully')
+    client.using_database(db_name='edurag')
+    print('Using database: edurag successfully')
 
     # 3. Return the client instance.
     return client

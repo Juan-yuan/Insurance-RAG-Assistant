@@ -15,7 +15,7 @@ An intelligent educational question-answering system built with the following te
 
 ## Setup
 
-Follow these steps in order. All commands below assume you start from the `Edu-Assistant/` directory.
+Follow these steps in order. All commands below assume you start from the `Education-Assistant/` directory.
 
 ### 1. Create the Conda Environment
 
@@ -83,7 +83,7 @@ Open **http://127.0.0.1:30000/** in your browser.
 You should see **Connect to Milvus Server** (not an email/password form). Use these values:
 
 - **Milvus Address:** `milvus-standalone:19530` (already pre-filled)
-- **Milvus Database:** `default`
+- **Milvus Database:** `edurag`
 - **Authentication:** leave **off**
 - Click **Connect**
 
@@ -95,7 +95,7 @@ If the page still shows email/password, hard-refresh the browser (`Cmd+Shift+R`)
 
 ### 5. Test Milvus and Redis from Python
 
-Stay in the `edu_rag` environment. From `Edu-Assistant/`:
+Stay in the `edu_rag` environment. From `Education-Assistant/`:
 
 ```bash
 python milvus_redis/test_milvus.py

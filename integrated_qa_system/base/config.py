@@ -71,7 +71,7 @@ class Config:
         self.MILVUS_PORT = os.getenv('MILVUS_PORT', self.config.get('milvus', 'port', fallback='19530'))
         # Milvus database name
         self.MILVUS_DATABASE_NAME = os.getenv('MILVUS_DATABASE_NAME',
-                                              self.config.get('milvus', 'database_name', fallback='itcast'))
+                                              self.config.get('milvus', 'database_name', fallback='edurag'))
         # Milvus collection name
         self.MILVUS_COLLECTION_NAME = os.getenv('MILVUS_COLLECTION_NAME',
                                                 self.config.get('milvus', 'collection_name',
