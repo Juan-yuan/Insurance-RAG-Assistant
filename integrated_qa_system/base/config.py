@@ -6,6 +6,42 @@ import configparser                 # Import config file parser library, parse I
 import os                           # Import path operation module
 
 
+def _load_env_files():
+    """Load repo .env files into os.environ without overriding existing vars."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.abspath(os.path.join(here, '..', '..', '.env')),
+        os.path.abspath(os.path.join(here, '..', '.env')),
+    ]
+    for path in candidates:
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding='utf-8') as env_file:
+            for line in env_file:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                key, _, value = line.partition('=')
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and not os.environ.get(key):
+                    os.environ[key] = value
+    lowercase_key = os.environ.get('openai_api_key', '').strip()
+    if lowercase_key and not os.environ.get('OPENAI_API_KEY'):
+        os.environ['OPENAI_API_KEY'] = lowercase_key
+
+
+def _first_env(*names, default=''):
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return default
+
+
+_load_env_files()
+
+
 # todo 1. Compute config file path.
 # 1. Get the absolute path of the current file.
 current_file_path = os.path.abspath(__file__)
@@ -79,9 +115,9 @@ class Config:
 
         # OpenAI LLM model
         self.LLM_MODEL = self.config.get('llm', 'model', fallback='gpt-5-mini')
-        # OpenAI API key
-        self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', self.config.get('llm', 'openai_api_key',
-                                                                          fallback='OpenAI API key'))
+        # OpenAI API key (.env may use OPENAI_API_KEY or openai_api_key)
+        ini_api_key = self.config.get('llm', 'openai_api_key', fallback='')
+        self.OPENAI_API_KEY = _first_env('OPENAI_API_KEY', 'openai_api_key', default=ini_api_key)
         # OpenAI API base URL
         self.OPENAI_BASE_URL = self.config.get('llm', 'openai_base_url', fallback='https://api.openai.com/v1')
 

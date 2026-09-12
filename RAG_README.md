@@ -1,24 +1,80 @@
 # RAG Notes (Education-Assistant)
+
+I built this RAG path for the education QA system. Online traffic is not “embed the question and return top-k”. I first classify intent, then either answer from the LLM or pick a retrieval strategy, search course documents, and generate from the parent context.
+
 Code:
 
+- `integrated_qa_system/rag_qa/core/query_classifier.py`
+- `integrated_qa_system/rag_qa/core/strategy_selector.py`
+- `integrated_qa_system/rag_qa/core/prompts.py`
 - `integrated_qa_system/rag_qa/core/document_processor.py`
-- `integrated_qa_system/rag_qa/edu_text_spliter/`
 - `integrated_qa_system/rag_qa/core/vector_store.py`
+- `integrated_qa_system/rag_qa/edu_text_spliter/`
+- `integrated_qa_system/rag_qa/edu_document_loaders/`
+
+<p><img src="./images/rag_system_design.png" alt="RAG system design" width="700" /></p>
+
+---
+
+## Online path: what I actually run
+
+### User Query
+
+1. Raw user question is the only runtime input
+2. The same string is reused for classification, strategy selection, embedding, and rerank
+
+### Query Classification
+
+1. BERT sequence classification (`BertForSequenceClassification`)
+2. Two intents: `professional_consulting` vs `general_knowledge`
+3. Fine-tuned on `classify_data/model_generic_5000.json`
+4. Professional path goes to RAG; general path skips retrieval
+
+### Retrieval Strategy
+
+1. Direct Retrieval
+2. HyDE Retrieval
+3. Sub-Query Retrieval
+4. Backtracking Retrieval
+
+### Document Search
+
+1. Parent-child chunking (`parent 1200` / `child 300`, overlap `50`)
+2. BGE-M3 hybrid vectors: dense `1024` + sparse
+3. Milvus hybrid search: `IVF_FLAT` + `SPARSE_INVERTED_INDEX`, `WeightedRanker(1.0, 0.7)`
+4. Subject filter on `source` (`ai` / `java` / `test` / `ops` / `bigdata`)
+5. Deduplicate to parent docs, then rerank with `bge-reranker-large`, keep Top-M
+
+### Generate Answer
+
+1. RAG prompt with `{context}`, `{question}`, `{phone}`
+2. Prefer retrieved context; if the answer comes from documents, say so
+3. If context is not enough, return the customer-service fallback
+
+### LLM Generate
+
+1. General-knowledge path: LLM answers from its own knowledge, no Milvus search
+2. Same answer template, empty or no retrieval context
+
+### Return Outputs
+
+1. Final answer text to the user
+2. Optional provenance: `source`, `parent_content`, `timestamp`
 
 ---
 
 ## 1. Why dense-only RAG falls over on this corpus
 
-Course material is not web paragraphs. It is a mix of PDF, PPT, scans, and Markdown, mostly Chinese, heavy on jargon.
+The course material I index is not web paragraphs. It is a mix of PDF, PPT, scans, and Markdown, heavy on jargon.
 
 What actually breaks:
 
 1. Scanned PDFs have no selectable text. Skip OCR and there is nothing to index.
-2. An English recursive splitter cuts on `. ! ?`. Chinese sentences either never split or split in the wrong place.
-3. Dense embeddings catch paraphrases. Queries that must hit the original term (`违约责任`, `Transformer`) drift.
+2. An English recursive splitter cuts on `. ! ?`. Mixed-language sentences either never split or split in the wrong place.
+3. Dense embeddings catch paraphrases. Queries that must hit the original term (`Transformer`, a course fee) drift.
 4. Returning a 300-char hit is too thin. The match is local; later generation has no section around it.
 
-So this is not `embedding + top-k`. Retrieval unit and answer unit are split on purpose: **search on small chunks, return the parent as context**.
+So this is not `embedding + top-k`. I split the retrieval unit and the answer unit on purpose: **search on small chunks, return the parent as context**.
 
 ---
 
@@ -26,6 +82,9 @@ So this is not `embedding + top-k`. Retrieval unit and answer unit are split on 
 
 | Stage | Choice | Role here |
 | --- | --- | --- |
+| Intent | Fine-tuned BERT | Route `general_knowledge` vs `professional_consulting` |
+| Strategy | LLM + `StrategySelector` | Direct / HyDE / Sub-query / Backtracking |
+| Prompts | `RAGPrompts` | Answer, HyDE, sub-query, backtracking templates |
 | Document object | LangChain `Document` | `page_content` + `metadata` through split, index, and recall |
 | Loaders | Custom OCR loaders + LangChain loaders | `.pdf/.docx/.ppt/.pptx/.jpg/.png` → RapidOCR; `.txt/.md` → text loaders |
 | OCR | RapidOCR (paddle first, onnxruntime fallback) | Text from images and scans; CPU / GPU paths |
@@ -64,7 +123,7 @@ Every successful load also sets:
 A failed file logs an error and the rest of the directory still runs. One bad screenshot should not kill a whole subject dump.
 
 OCR is a fallback, not multimodal understanding. Blurry slides produce dirty text; dirty text poisons recall.
-<p><img src="./images/db_1.png" alt="docker container" width="700" /></p>
+<p><img src="./images/db_1.png" alt="document ingest" width="700" /></p>
 ---
 
 ## 4. Chunk: parent / child, not one window
@@ -79,7 +138,7 @@ id               = {parent_id}_child_{k}
 
 What gets indexed is the child. After a hit, `parent_content` rebuilds the parent; parents are deduped by that text.
 
-Why:
+Why I chose these sizes:
 
 - Child 300: sharper vectors. Terms, formulas, and headings are easier for hybrid search to hit.
 - Parent 1200: rerank (and later generation) see a full subsection, not half a sentence.
@@ -88,7 +147,7 @@ Why:
 `.md` uses `MarkdownTextSplitter`. Everything else uses `EduRecursiveTextSplitter`. The recursive splitter walks paragraph → sentence → clause → comma until something actually cuts, then collapses extra blank lines. Separators stay in the chunk (`keep_separator=True`), so sentence punctuation is not stripped.
 
 `AliTextSplitter` is in the package and not wired into the main path. Semantic splits follow paragraph boundaries better, but they pull in a BERT and are slow on CPU. Course files currently use rule-based splits; semantic split is a spare option.
-<p><img src="./images/db_2.png" alt="docker container" width="700" /></p>
+<p><img src="./images/db_2.png" alt="parent child chunking" width="700" /></p>
 ---
 
 ## 5. Index: BGE-M3 + two vector fields in Milvus
@@ -112,7 +171,7 @@ One BGE-M3 encode gives dense and sparse, so there is no separate BM25 corpus to
 Writes go through `upsert`. Re-running `vector_store.py` on the same files overwrites identical children instead of appending.
 
 On Mac MPS, embeddings default to fp16. Milvus FLOAT_VECTOR wants `float32`. `add_documents` does `np.asarray(..., dtype=np.float32)` and casts sparse index/value to Python `int` / `float`. That is a real type error, not a style choice.
-<p><img src="./images/db_3.png" alt="docker container" width="700" /></p>
+<p><img src="./images/db_3.png" alt="Milvus hybrid index" width="700" /></p>
 ---
 
 ## 6. Retrieve: hybrid → parent dedupe → CrossEncoder
@@ -128,18 +187,20 @@ On Mac MPS, embeddings default to fp16. Milvus FLOAT_VECTOR wants `float32`. `ad
 
 Rerank runs on parents, not children. A CrossEncoder is more accurate than a bi-encoder and more expensive, so it only sees the short fused list, not the whole collection.
 
-`__main__` currently stops at ingest. The search function is ready; generation can call it directly.
-<p><img src="./images/db_4.png" alt="docker container" width="700" /></p>
+`vector_store.py` can ingest and then run a sample hybrid search. Generation consumes the same parent list.
+<p><img src="./images/db_4.png" alt="hybrid retrieve and rerank" width="700" /></p>
 
 ---
 
-## Frame it as “where recall error comes from, and which layer patches which kind”:
+## 7. Where I patch each kind of recall error
 
 1. **Parse.** No text on the slide → OCR first, or the rest of the stack is idle.
 2. **Split.** Sentence punctuation recursion + Markdown structure. Parent/child separates retrieval grain from answer grain.
-3. **Represent.** BGE-M3 emits dense and sparse in one pass: paraphrase and exact term.
-4. **Index.** IVF_FLAT for semantics, inverted index for jargon, scalar `source` to drop other subjects first.
-5. **Rank.** Weighted fusion only mixes the two recall lists. Final order is the CrossEncoder.
+3. **Route.** BERT decides whether this query even needs the corpus.
+4. **Rewrite.** Strategy selector picks Direct / HyDE / Sub-query / Backtracking before search.
+5. **Represent.** BGE-M3 emits dense and sparse in one pass: paraphrase and exact term.
+6. **Index.** IVF_FLAT for semantics, inverted index for jargon, scalar `source` to drop other subjects first.
+7. **Rank.** Weighted fusion only mixes the two recall lists. Final order is the CrossEncoder.
 
 If asked why not ES + embeddings: a course corpus fits one Milvus collection with two vector fields. No extra tokenizer or BM25 corpus to keep in sync. If asked why not ColBERT multi-vector: BGE-M3 can emit `colbert_vecs`; they are not in the schema yet. Complexity stays down on purpose.
 
@@ -149,10 +210,4 @@ Parameters: 1200 / 300 / 50 are working values. Too little overlap drops sentenc
 
 ## 8. This file tracks the code
 
-What is written here is ingest + hybrid retrieve. Do not pre-fill empty sections. When the next pieces land, update this file in place:
-
-- query classification / routing (subject, chit-chat, retrieve)
-- prompts and LLM generation
-- handoff to MySQL / Redis QA
-
-If chunk sizes, schema, or fusion weights change, edit the tables above. Do not start a second RAG doc.
+What is written here is the online path I designed plus ingest and hybrid retrieve. If chunk sizes, schema, fusion weights, labels, or strategy names change, edit the lists and tables above. Do not start a second RAG doc.
