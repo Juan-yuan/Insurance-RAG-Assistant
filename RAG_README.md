@@ -18,118 +18,7 @@ Code:
 
 ---
 
-## Online path: what I actually run
-
-### Adjuster Query
-
-1. Raw question is the only runtime input
-2. The same string is reused for classification, scene routing, strategy selection, embedding, and rerank
-
-### Query Classification
-
-1. BERT sequence classification (`BertForSequenceClassification`)
-2. Gate: `claims_adjudication` vs `general_inquiry`
-3. Claims path goes to RAG; general inquiry skips retrieval
-4. Claims scenes (LLM router): `document_audit` / `claims_rules` / `amount_calculation` / `policy_configuration`
-
-### Retrieval Strategy
-
-1. Direct Retrieval
-2. HyDE Retrieval
-3. Sub-Query Retrieval
-4. Backtracking Retrieval
-
-### Document Search
-
-1. Parent-child chunking (`parent 1200` / `child 300`, overlap `50`) so legal sentences stay intact
-2. BGE-M3 hybrid vectors: dense `1024` + sparse
-3. Milvus hybrid search: `IVF_FLAT` + `SPARSE_INVERTED_INDEX`, `WeightedRanker(1.0, 0.7)`
-4. Collection filter on `source` (`clause` / `medical` / `case`)
-5. Deduplicate to parent docs, then rerank with `bge-reranker-large`, keep Top-M
-
-### Conversation Memory
-
-1. LangGraph `MemorySaver`, keyed by `thread_id = adjuster_{adjuster_id}_case_{case_id}`
-2. One saver per agent type (`qa` / …) so State schemas do not clash
-3. History is formatted as `User:` / `Assistant:` and injected into `{history}`
-4. In-process today (lost on restart); swap to `AsyncPostgresSaver` for persistence
-5. Two control strategies below keep the prompt from growing without bound
-
-#### Two memory-control strategies
-
-1. **Sliding window (deterministic truncation).** Keep only the most recent *n* turns; older turns are dropped immediately. The `SystemMessage` (system prompt) always stays at the front of the list and does not count toward the turn budget.
-2. **Summary compression (semantic retention).** When the turn count exceeds a threshold, call the LLM to compress the older dialogue into a **case-profile summary** (insured facts, disputed clauses, unpaid amounts, unresolved questions). That summary replaces the discarded history so the semantically important facts remain.
-
-### Generate Answer
-
-1. Two answer templates: `rag_prompt()` uses `{context}`, `{question}`, `{phone}`; `rag_prompt_with_history()` also takes `{history}`
-2. Prefer retrieved clauses / bills / cases; if the answer comes from documents, cite them
-3. If context is not enough, return the claims-hotline fallback
-4. After the opinion is produced, the turn is written back to `ConversationMemory`
-
-### LLM Generate
-
-1. General-inquiry path: LLM answers from its own knowledge, no Milvus search
-2. Claims path: same template with retrieval context; `{history}` is still filled
-
-### Return Outputs
-
-1. Structured first-pass opinion to the adjuster
-2. Provenance: `source`, `parent_content`, `timestamp`
-
----
-
-## 1. Why dense-only RAG falls over on this corpus
-
-The claims material I index is not web paragraphs. It is a mix of PDF policy wording, scanned bills, PPT medical guidelines, and Markdown case notes, heavy on legal and clinical jargon.
-
-What actually breaks:
-
-1. Scanned bills have no selectable text. Skip OCR and there is nothing to index.
-2. An English recursive splitter cuts on `. ! ?`. Mixed-language clauses either never split or split in the wrong place.
-3. Dense embeddings catch paraphrases. Queries that must hit the original term (a clause id, a deductible, an ICD code) drift.
-4. Returning a 300-char hit is too thin. The match is local; later generation has no surrounding subsection.
-
-So this is not `embedding + top-k`. I split the retrieval unit and the answer unit on purpose: **search on small chunks, return the parent as context**. Recursive sentence-aware splitting is what keeps legal text intact.
-
----
-
-## 2. Stack (pipeline order, not a name dump)
-
-| Stage | Choice | Role here |
-| --- | --- | --- |
-| Intent gate | Fine-tuned BERT | Route `general_inquiry` vs `claims_adjudication` |
-| Claims scene | LLM router | document_audit / claims_rules / amount_calculation / policy_configuration |
-| Strategy | LLM + `StrategySelector` | Direct / HyDE / Sub-query / Backtracking |
-| Memory | LangGraph `MemorySaver` + `ConversationMemory` | Per-adjuster, per-case history; sliding window or summary compression |
-| Prompts | `RAGPrompts` | Cited first-pass opinion, history-aware opinion, HyDE, sub-query, backtracking |
-| Document object | LangChain `Document` | `page_content` + `metadata` through split, index, and recall |
-| Loaders | Custom OCR loaders + LangChain loaders | `.pdf/.docx/.ppt/.pptx/.jpg/.png` → RapidOCR; `.txt/.md` → text loaders |
-| OCR | RapidOCR (paddle first, onnxruntime fallback) | Text from bills and scans; CPU / GPU paths |
-| Rule split | `EduRecursiveTextSplitter` | Recurse on sentence punctuation so clauses stay whole |
-| Structure split | `MarkdownTextSplitter` | `.md` by headings / paragraphs, not punctuation |
-| Semantic split (optional) | `AliTextSplitter` + ModelScope BERT segmentation | Spare path; not on the main ingest |
-| Embedding | **BGE-M3** | One forward pass → dense (1024-d) and sparse |
-| Vector DB | **Milvus 2.4 standalone** (pymilvus) | Both vector types in one collection; hybrid search |
-| Dense index | IVF_FLAT + IP, `nlist=128`, search `nprobe=10` | Semantic neighbors |
-| Sparse index | SPARSE_INVERTED_INDEX + IP, `drop_ratio_build=0.2` | Keyword inverted index for clause ids and terms |
-| Fusion | `WeightedRanker(1.0, 0.7)` | Dense leads; sparse boosts exact terms |
-| Rerank | **bge-reranker-large** (CrossEncoder) | Score deduped parents; keep Top-M |
-| Primary key | MD5 of child text | `upsert`; re-ingest does not duplicate |
-| Filter | `source` scalar | Cut search space by `clause` / `medical` / `case` |
-| Device | MPS fp16 / CPU | Cast embeddings to `float32` before write or Milvus rejects them |
-
-Defaults from `config.ini [retrieval]`:
-
-- parent_chunk_size = **1200**
-- child_chunk_size = **300**
-- chunk_overlap = **50**
-- retrieval_k = **5** (hybrid search returns 5 children)
-- candidate_m = **2** (at most 2 parents after rerank)
-
----
-
-## 3. Ingest: files → Document
+## 1. Ingest: files → Document
 
 `document_processor.load_documents_from_directory` walks the tree. Folder name `clause_data` becomes metadata `source = clause`. That field is the later filter (`clause` / `medical` / `case`).
 
@@ -144,14 +33,16 @@ OCR is a fallback, not multimodal understanding. Blurry bills produce dirty text
 <p><img src="./images/db_1.png" alt="document ingest" width="700" /></p>
 ---
 
-## 4. Chunk: parent / child, not one window
+## 2. Chunk: parent / child, not one window
 
 `process_documents` splits parents first, then children. Each child keeps the full parent:
 
 ```text
-parent_id        = doc_{i}_parent_{j}
-parent_content   = parent text
-id               = {parent_id}_child_{k}
+- parent_chunk_size = **1200**
+- child_chunk_size = **300**
+- chunk_overlap = **50**
+- retrieval_k = **5** (hybrid search returns 5 children)
+- candidate_m = **2** (at most 2 parents after rerank)
 ```
 
 What gets indexed is the child. After a hit, `parent_content` rebuilds the parent; parents are deduped by that text.
@@ -168,7 +59,7 @@ Why I chose these sizes:
 <p><img src="./images/db_2.png" alt="parent child chunking" width="700" /></p>
 ---
 
-## 5. Index: BGE-M3 + two vector fields in Milvus
+## 3. Index: BGE-M3 + two vector fields in Milvus
 
 Collection: `edurag.edurag_final` (Insurance RAG Assistant vector store). The database is created if missing.
 
@@ -192,7 +83,7 @@ On Mac MPS, embeddings default to fp16. Milvus FLOAT_VECTOR wants `float32`. `ad
 <p><img src="./images/db_3.png" alt="Milvus hybrid index" width="700" /></p>
 ---
 
-## 6. Retrieve: hybrid → parent dedupe → CrossEncoder
+## 4. Retrieve: hybrid → parent dedupe → CrossEncoder
 
 `hybrid_search_with_rerank(query, k=5, source_filter=...)`:
 
@@ -210,27 +101,22 @@ Rerank runs on parents, not children. A CrossEncoder is more accurate than a bi-
 
 ---
 
-## 7. Where I patch each kind of recall error
+## 5. Rerank: `bge-reranker-large` on parent clauses
 
-1. **Parse.** No text on the bill → OCR first, or the rest of the stack is idle.
-2. **Split.** Sentence punctuation recursion + Markdown structure. Parent/child separates retrieval grain from answer grain so clauses stay complete.
-3. **Route.** BERT decides whether this query even needs the corpus; the scene router picks clause vs medical vs case.
-4. **Rewrite.** Strategy selector picks Direct / HyDE / Sub-query / Backtracking before search.
-5. **Represent.** BGE-M3 emits dense and sparse in one pass: paraphrase and exact term.
-6. **Index.** IVF_FLAT for semantics, inverted index for jargon, scalar `source` to drop other collections first.
-7. **Rank.** Weighted fusion only mixes the two recall lists. Final order is the CrossEncoder.
+Hybrid search only *recalls* candidates. Final order comes from a CrossEncoder in `vector_store.py`: local `bge-reranker-large`, loaded once in `VectorStore.__init__`.
 
-- Why not ColBERT multi-vector?
-* BGE-M3 can emit `colbert_vecs`;
+1. **Gate.** After `_get_unique_parent_docs`. Fewer than 2 parents → skip rerank, slice to `candidate_m`.
+2. **Pair.** Build `[query, parent_content]` for each remaining parent — full clause block, not the 300-char child.
+3. **Score.** `reranker.predict(pairs)` with `bge-reranker-large` (CrossEncoder).
+4. **Keep.** Sort scores descending, return Top-`candidate_m` (default **2**).
 
-- Parameters: 1200 / 300 / 50 are working values.
-- Too little overlap drops sentences;
-- too large a parent adds noise for the reranker.
-- `WeightedRanker` 1.0 / 0.7 can move with how term-heavy the queries are.
+A CrossEncoder is more accurate than a bi-encoder and more expensive, so it never scans the collection — only the short fused parent list.
+
+Code: `hybrid_search_with_rerank` in `integrated_qa_system/rag_qa/core/vector_store.py`.
 
 ---
 
-## 8. Conversation memory: bound the history, keep the signal
+## 6. Memory
 
 `memory.py` stores turns in a LangGraph checkpointer. `rag_system.query()` loads `{history}` before generation and appends the new Q&A after it. Without a bound, long cases blow the context window and drown the current question in old chat.
 
@@ -242,5 +128,27 @@ I use two complementary controls:
 The window is the default for short cases. Compression kicks in when *n* is not enough and dropping history would lose the case state.
 
 Code: `integrated_qa_system/rag_qa/core/memory.py`, consumed by `rag_system.py` and `rag_prompt_with_history()`.
+
+---
+
+## 7. Evaluation: RAGAS
+
+I do not eyeball RAG quality. A labeled claims set (`question`, `contexts`, `answer`, `ground_truth`) is scored with RAGAS so retrieval and generation stay under the same four numbers.
+
+**What I measure**
+
+| Metric | Question it answers |
+| --- | --- |
+| **Faithfulness** | Does the opinion stay inside retrieved clauses / bills / cases? |
+| **Answer relevancy** | Does the opinion actually answer the adjuster's question? |
+| **Context precision** | Are the retrieved parents on-topic, or extra noise? |
+| **Context recall** | Do those parents cover the ground-truth facts? |
+<p><img src="./images/rag_evaluation_params.png" alt="RAGAS evaluation metrics" width="700" /></p>
+
+Script: `integrated_qa_system/rag_qa/rag_assessment/ragas_evaluate.py`  
+Judge LLM: `gpt-5-mini`. Embeddings: `text-embedding-3-small`.  
+Dataset: `rag_evaluate_data.json`. Scores land in `ragas_evaluation_results.csv`.
+
+<p><img src="./images/rag_evaluation_result.png" alt="RAGAS evaluation results" width="700" /></p>
 
 ---
