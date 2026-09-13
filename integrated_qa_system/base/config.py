@@ -136,7 +136,7 @@ class Config:
         # App config
         # List of valid sources
         self.VALID_SOURCES = ast.literal_eval(
-            self.config.get('app', 'valid_sources', fallback='["ai", "java", "test", "ops", "bigdata"]'))
+            self.config.get('app', 'valid_sources', fallback='["clause", "medical", "case"]'))
         # Customer service phone
         self.CUSTOMER_SERVICE_PHONE = self.config.get('app', 'customer_service_phone', fallback='13112345678')
 

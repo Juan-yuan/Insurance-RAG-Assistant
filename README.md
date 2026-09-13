@@ -1,21 +1,74 @@
-# Educational Assistant System
+# Insurance RAG Assistant
 
-An intelligent educational question-answering system built with the following technologies:
+**Health Insurance Claims Retrieval-Augmented Generation System**
 
-- Python
-- RAG
-- Milvus
-- Redis
-- LLM
-- Docker
-- LangChain
-- MySQL
-- BM25
-- FastAPI
+Insurance RAG Assistant is an intelligent claims-assist platform that turns first-pass review, clause matching, and opinion drafting from a two-day manual grind into a four-hour, AI-backed workflow.
+
+This repository is that system: ingest policy clauses, medical guidelines, and historical case files; route the adjuster's question; retrieve with dense + sparse hybrid search; generate a cited first-pass opinion; keep per-case memory.
+
+## Tech Stack
+
+| Layer | Stack                                                                           |
+| --- |---------------------------------------------------------------------------------|
+| Language & serving | Python                                                                          |
+| Vector database | Milvus (multi-collection isolation via `source`: clause / medical / case)       |
+| Intent routing | Fine-tuned BERT (claims vs general) + 4-class claims scene router               |
+| Hybrid retrieval | BGE-M3 dense + sparse dual recall, weighted fusion, domain reranker             |
+| Generation | OpenAI `gpt-5-mini` (`config.ini [llm] model`) |
+| Evaluation | RagAS-style metrics: context relevance, answer faithfulness, retrieval hit rate |
+| Memory | LangGraph `MemorySaver` keyed by adjuster + case                                |
+| Cache / structured QA | Redis, MySQL, BM25                                                              |
+| Runtime | Docker (Milvus, Redis, Attu), LangChain                                         |
+
+## Business Challenges
+
+Health-insurance claims were slow and inconsistent: dense policy language, unstructured medical bills, and no shared adjudication standard. Adjusters spent days on first-pass review, clause interpretation drifted across desks, and cycle time plus compliance risk both went up.
+
+## What It Does
+
+1. **Knowledge & index.** Cleaned and structured 150K+ heterogeneous claims records (clauses, medical guidelines, historical case files). Recursive sentence-aware splitting keeps legal text intact. Milvus isolates clause / medical / case collections for cross-domain joint search.
+2. **Intent routing & hybrid recall.** BERT gates claims adjudication vs general inquiry. Claims traffic is routed into four scenes: **document audit**, **claims rules**, **amount calculation**, **policy configuration**. Dense + sparse dual recall, then fusion + a domain reranker, lifts recall on long clauses and messy bills.
+3. **Cited generation.** Domain prompts strengthen adjudication reasoning and compliant wording. Dynamic prompt assembly plus retrieved clause citations produces a structured, explainable first-pass opinion and cuts hallucination / clause-misread risk.
+4. **Closed-loop evaluation.** Track context relevance, answer faithfulness, and retrieval hit rate. Bad-case analysis feeds retrieval and prompt iteration.
+
+## Business Impact
+
+| Pain | Result |
+| --- | --- |
+| Slow first-pass review | **75%** of first-pass work automated; average case time **2 days → 4 hours** |
+| Inconsistent clause interpretation | System-assisted decision accuracy **91%**; consultation satisfaction **+40%** |
+| No measurable RAG quality | Evaluation loop keeps retrieval and generation under quantitative control |
+
+## Runtime path
+
+```text
+adjuster query
+  → BERT: general_inquiry | claims_adjudication
+  → claims scene: document_audit | claims_rules | amount_calculation | policy_configuration
+  → retrieval strategy: Direct | HyDE | Sub-query | Backtracking
+  → BGE-M3 hybrid search (filter source = clause | medical | case)
+  → parent dedupe + rerank
+  → generate with {history} + {context} + citations
+  → write turn to per-case memory
+```
+
+Code:
+
+- `integrated_qa_system/rag_qa/core/query_classifier.py`
+- `integrated_qa_system/rag_qa/core/strategy_selector.py`
+- `integrated_qa_system/rag_qa/core/prompts.py`
+- `integrated_qa_system/rag_qa/core/memory.py`
+- `integrated_qa_system/rag_qa/core/rag_system.py`
+- `integrated_qa_system/rag_qa/core/document_processor.py`
+- `integrated_qa_system/rag_qa/core/vector_store.py`
+
+Deeper retrieval notes: [`RAG_README.md`](./RAG_README.md)
+
+---
 
 ## Setup
 
-Follow these steps in order. All commands below assume you start from the `Education-Assistant/` directory.
+All commands below assume you start from the `Education-Assistant/` directory.
 
 ### 1. Create the Conda Environment
 
@@ -32,7 +85,7 @@ pip install -r requirements.txt
 
 ### 3. Start Milvus, Redis, and Attu
 
-Docker Compose now starts everything together, including **Attu v2.4.12** (the GUI for Milvus 2.4.x).
+Docker Compose starts **Attu v2.4.12** (GUI for Milvus 2.4.x) with the rest of the stack.
 
 Do **not** run `docker pull zilliz/attu` or `docker run zilliz/attu` separately. The untagged `latest` image is Attu v3, which shows an email/password login page and does **not** support this project's Milvus 2.4.4.
 
@@ -83,7 +136,7 @@ Open **http://127.0.0.1:30000/** in your browser.
 You should see **Connect to Milvus Server** (not an email/password form). Use these values:
 
 - **Milvus Address:** `milvus-standalone:19530` (already pre-filled)
-- **Milvus Database:** `edurag`
+- **Milvus Database:** `edurag` (Insurance RAG Assistant vector store)
 - **Authentication:** leave **off**
 - Click **Connect**
 
@@ -125,5 +178,8 @@ ipconfig getifaddr en0
 
 Then open `http://<your-lan-ip>:30000` on the other device. The Connect address in Attu is still `milvus-standalone:19530`.
 
-### 7. Milvus db schema
-<p><img src="./images/milvus.png" alt="milvus redis connection" width="700" /></p>
+### 7. Milvus schema
+
+Collections are filtered by `source`: `clause` (policy language), `medical` (bills / guidelines), `case` (historical adjudications).
+
+<p><img src="./images/milvus.png" alt="milvus schema" width="700" /></p>

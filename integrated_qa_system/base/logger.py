@@ -37,7 +37,7 @@ def setup_logger(log_file=log_file):
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
     # 2. Create a logger object -> manage log handlers uniformly and set the log level.
-    logger = logging.getLogger('Education-Assistant')
+    logger = logging.getLogger('Insurance RAG Assistant')
     logger.setLevel(logging.INFO)
 
     # 7. Add handlers to the logger. Key point: check whether handlers already exist to avoid adding them repeatedly when this function is called multiple times.
