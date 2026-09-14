@@ -1,0 +1,10 @@
+{
+  "include": ["."],
+  "extraPaths": ["integrated_qa_system"],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["integrated_qa_system"]
+    }
+  ]
+}

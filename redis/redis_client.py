@@ -3,9 +3,9 @@ import json
 from base import Config, logger
 
 class RedisClient:
+
     def __init__(self):
         self.logger = logger
-
         try:
             self.client = redis.StrictRedis(
                 host=Config.REDIS_HOST,
@@ -25,7 +25,6 @@ class RedisClient:
         except redis.RedisError as e:
             self.logger.error(f'Redis failed: {e}')
 
-
     def get_data(self, key):
         try:
             data = self.client.get(key)
@@ -33,7 +32,6 @@ class RedisClient:
         except redis.RedisError as e:
             self.logger.error(f'Redis get data failed: {e}')
             return None
-
 
     def get_answer(self, query):
         try:
@@ -46,7 +44,6 @@ class RedisClient:
             self.logger.error(f'Redis query data failed: {e}')
             return None
 
-
     def delete_key(self, key):
         try:
             result = self.client.delete(key)
@@ -55,36 +52,19 @@ class RedisClient:
             else:
                 self.logger.info(f'key is not in redis : {key}')
             return result
-
         except redis.RedisError as e:
             self.logger.error(f'Redis delete data failed: {e}')
-
 
     def get_keys(self):
         return self.client.keys("*")
 
-
-
 if __name__ == '__main__':
     redis_client = RedisClient()
-
     key = 'answer:tell me about yourself ?'
     value = { "name": 'Lily', "age": 21 }
-
-    # redis_client.set_data(key, value)
-
-    # data = redis_client.get_data(key)
-    # print(data)
-
-    # redis_client.delete_key(key)
-
-    # answer = redis_client.get_answer('tell me about yourself ?')
-    # print(answer)
-
     keys = redis_client.get_keys()
     print(keys)
     print('-' * 30)
-
     print(redis_client.get_answer('datetime update to string'))
     print('♥️' * 30)
     print(redis_client.get_answer('datetime update to string'))

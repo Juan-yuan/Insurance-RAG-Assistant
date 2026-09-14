@@ -1,29 +1,24 @@
 import os
 import sys
 import time
-
-# main_integration.py lives at Insurance-RAG-Assistant/; packages live under integrated_qa_system/
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_HERE, "integrated_qa_system")
+sys.path.insert(0, _HERE)
 sys.path.insert(0, _PROJECT_ROOT)
-sys.path.insert(0, os.path.join(_PROJECT_ROOT, "base"))
-
 from mysql_qa.cache.redis_client import RedisClient
 from mysql_qa.db.mysql_client import MySQLClient
 from mysql_qa.retrieval.bm25_search import BM25Search
 from rag_qa.core.vector_store import VectorStore
 from rag_qa.core.rag_system import RAGSystem
-from base.config import config
-from base.logger import logger
+from insurance_rag.config import config
+from insurance_rag.logger import logger
 from openai import OpenAI
-
 
 def _openai_api_key():
     key = (config.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY") or os.getenv("openai_api_key") or "").strip()
     if key:
         os.environ["OPENAI_API_KEY"] = key
     return key
-
 
 class IntegratedQASystem:
     def __init__(self):
@@ -38,7 +33,6 @@ class IntegratedQASystem:
             self.bm25_search = BM25Search(self.redis_client, self.mysql_client)
         except Exception as e:
             self.logger.error(f"MySQL/Redis/BM25 failed to initialize; queries will fall back to RAG: {e}")
-
         api_key = _openai_api_key()
         if not api_key:
             self.logger.error(
@@ -49,14 +43,12 @@ class IntegratedQASystem:
         except Exception as e:
             self.logger.error(f"Failed to initialize the OpenAI client: {e}")
             raise
-
         self.vector_store = None
         try:
             self.vector_store = VectorStore()
         except Exception as e:
             self.logger.error(f"VectorStore failed to initialize; RAG will not retrieve documents: {e}")
             self.vector_store = None
-
         self.rag_system = RAGSystem(self.vector_store, self.call_dashscope)
 
     def call_dashscope(self, prompt):
@@ -102,7 +94,6 @@ class IntegratedQASystem:
             self.logger.info(f"Query handling time {processing_time:.2f}s")
             return "No answer found"
 
-
 def main():
     qa_system = IntegratedQASystem()
     try:
@@ -113,7 +104,6 @@ def main():
             query = input("\nQuestion: ").strip()
             if query.lower() == "exit":
                 logger.info("Exiting")
-                print("Goodbye.")
                 break
             source_filter = input(
                 f"Source filter ({'/'.join(qa_system.config.VALID_SOURCES)}; press Enter to skip): "
@@ -132,7 +122,6 @@ def main():
     finally:
         if qa_system.mysql_client is not None:
             qa_system.mysql_client.close()
-
 
 if __name__ == "__main__":
     main()
