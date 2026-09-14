@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance RAG Assistant</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --primary-light: #6b8bb8;
+            --primary-dark: #3a5a8c;
+            --secondary-color: #6c757d;
+            --accent-color: #61dafb;
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --border-color: #dee2e6;
+            --hover-color: #e9ecef;
+            --success-color: #28a745;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: var(--transition);
+        }
+
+        body.dark-mode {
+            --primary-color: #5b7cac;
+            --primary-light: #7c9dcf;
+            --primary-dark: #4a6fa5;
+            --secondary-color: #adb5bd;
+            --bg-color: #212529;
+            --text-color: #f8f9fa;
+            --border-color: #343a40;
+            --hover-color: #343a40;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            display: flex;
+            height: calc(100vh - 180px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+        }
+
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-color);
+            padding: 1rem;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+
+        .search-box {
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin-bottom: 1rem;
+            transition: var(--transition);
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.2);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .chat-history {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            background-color: var(--bg-color);
+            transition: var(--transition);
+        }
+
+        .chat-input-container {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+
+        .source-filter {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .source-filter select {
+            margin-left: 0.5rem;
+            padding: 0.3rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: var(--transition);
+        }
+
+        .input-tools {
+            display: flex;
+            margin-bottom: 0.5rem;
+            gap: 0.5rem;
+        }
+
+        .tool-btn {
+            background-color: transparent;
+            border: none;
+            color: var(--secondary-color);
+            cursor: pointer;
+            padding: 0.3rem;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+
+        .tool-btn:hover {
+            background-color: var(--hover-color);
+            color: var(--primary-color);
+        }
+
+        .input-group {
+            display: flex;
+            position: relative;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px 0 0 4px;
+            font-size: 1rem;
+            resize: none;
+            height: 45px;
+            max-height: 150px;
+            overflow-y: auto;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: var(--transition);
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.2);
+        }
+
+        .send-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 1.25rem;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .send-btn:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .send-btn:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .send-btn:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.25rem;
+            font-size: 0.85rem;
+            color: var(--secondary-color);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .message-content {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            max-width: 80%;
+            word-break: break-word;
+            box-shadow: var(--card-shadow);
+            position: relative;
+        }
+
+        .user-message {
+            align-self: flex-end;
+        }
+
+        .user-message .message-content {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            align-self: flex-end;
+            border-top-right-radius: 0;
+        }
+
+        .system-message {
+            align-self: flex-start;
+        }
+
+        .system-message .message-content {
+            background-color: var(--hover-color);
+            color: var(--text-color);
+            align-self: flex-start;
+            border-top-left-radius: 0;
+        }
+
+        .message-status {
+            display: flex;
+            align-items: center;
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--secondary-color);
+            justify-content: flex-end;
+        }
+
+        .message-content pre {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-content code {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+        }
+
+        .message-content img {
+            max-width: 100%;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            padding: 0.75rem 1rem;
+            background-color: var(--hover-color);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            margin-right: 4px;
+            animation: typing 1s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+            margin-right: 0;
+        }
+
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .session-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            gap: 0.5rem;
+        }
+
+        .new-session-btn, .clear-history-btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            flex: 1;
+        }
+
+        .new-session-btn:hover, .clear-history-btn:hover {
+            background-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .new-session-btn:active, .clear-history-btn:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .session-info {
+            font-size: 0.9rem;
+            color: var(--secondary-color);
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .history-title {
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: var(--transition);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            background-color: var(--hover-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .history-item:hover {
+            background-color: rgba(74, 111, 165, 0.1);
+            transform: translateX(5px);
+        }
+
+        .history-question {
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-color);
+        }
+
+        .history-answer {
+            color: var(--secondary-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.85rem;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            visibility: hidden;
+            backdrop-filter: blur(2px);
+            transition: var(--transition);
+        }
+
+        body.dark-mode .loading-overlay {
+            background-color: rgba(33, 37, 41, 0.8);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-left-color: var(--primary-color);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .quick-reply-btn {
+            padding: 0.3rem 0.75rem;
+            background-color: var(--hover-color);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .quick-reply-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                max-height: 200px;
+            }
+
+            .message-content {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Insurance RAG Assistant</h1>
+        <button class="theme-toggle" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </header>
+
+    <div class="container">
+        <div class="chat-container">
+            <div class="sidebar">
+
+                <input type="text" class="search-box" id="searchBox" placeholder="Search case history...">
+
+                <div class="session-controls">
+                    <button class="new-session-btn" id="newSessionBtn">
+                        <i class="fas fa-plus"></i> New case
+                    </button>
+                    <button class="clear-history-btn" id="clearHistoryBtn">
+                        <i class="fas fa-trash"></i> Clear history
+                    </button>
+                </div>
+                <div class="history-title">
+                    <i class="fas fa-history"></i> Case history
+                </div>
+                <div class="history-list" id="historyList">
+
+                </div>
+                <div class="session-info" id="sessionInfo"></div>
+            </div>
+
+            <div class="main-content">
+                <div class="chat-history" id="chatHistory">
+
+                    <div class="message system-message">
+                        <div class="message-header">
+                            <div class="avatar">IA</div>
+                            <span>Claims assistant</span>
+                        </div>
+                        <div class="message-content">
+                            Hello. I am Insurance RAG Assistant. Ask about policy clauses, medical records, or similar cases.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="source-filter">
+                        <label for="sourceFilter">Source:</label>
+                        <select id="sourceFilter">
+                            <option value="">All sources</option>
+
+                        </select>
+                    </div>
+                    <div class="input-tools">
+                        <button class="tool-btn" id="emojiBtn" title="Emoji">
+                            <i class="far fa-smile"></i>
+                        </button>
+                        <button class="tool-btn" id="imageBtn" title="Image">
+                            <i class="far fa-image"></i>
+                        </button>
+                        <button class="tool-btn" id="fileBtn" title="File">
+                            <i class="far fa-file"></i>
+                        </button>
+                    </div>
+                    <div class="input-group">
+                        <textarea class="chat-input" id="chatInput" placeholder="Ask a claims question..."
+                            rows="1" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" spellcheck="false"></textarea>
+                        <button class="send-btn" id="sendBtn">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+
+                    <div class="quick-replies" id="quickReplies">
+                        <button class="quick-reply-btn">Is this outpatient CT covered after the deductible?</button>
+                        <button class="quick-reply-btn">What is the waiting period for pre-existing conditions?</button>
+                        <button class="quick-reply-btn">Compare this bill against clause 3.2</button>
+                    </div>
+                </div>
+
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        let currentSessionId = null;
+        let isResponseInProgress = false;
+        let socket = null;
+        let isDarkMode = false;
+
+        const chatHistory = document.getElementById('chatHistory');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const sourceFilter = document.getElementById('sourceFilter');
+        const historyList = document.getElementById('historyList');
+        const sessionInfo = document.getElementById('sessionInfo');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const themeToggle = document.getElementById('themeToggle');
+        const searchBox = document.getElementById('searchBox');
+        const quickReplies = document.getElementById('quickReplies');
+        const quickReplyBtns = quickReplies.querySelectorAll('.quick-reply-btn');
+        const emojiBtn = document.getElementById('emojiBtn');
+        const imageBtn = document.getElementById('imageBtn');
+        const fileBtn = document.getElementById('fileBtn');
+
+        const API_BASE_URL = '';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+
+            isDarkMode = localStorage.getItem('darkMode') === 'true';
+            updateTheme();
+
+            await createNewSession();
+
+            await loadSources();
+
+            sendBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            newSessionBtn.addEventListener('click', createNewSession);
+            clearHistoryBtn.addEventListener('click', clearHistory);
+            themeToggle.addEventListener('click', toggleTheme);
+            searchBox.addEventListener('input', searchHistory);
+
+            quickReplyBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    chatInput.value = btn.textContent;
+                    chatInput.style.height = 'auto';
+                    chatInput.style.height = chatInput.scrollHeight + 'px';
+                    sendMessage();
+                });
+            });
+
+            emojiBtn.addEventListener('click', () => alert('Emoji picker is not available yet'));
+            imageBtn.addEventListener('click', () => alert('Image upload is not available yet'));
+            fileBtn.addEventListener('click', () => alert('File upload is not available yet'));
+        });
+
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            localStorage.setItem('darkMode', isDarkMode);
+            updateTheme();
+        }
+
+        function updateTheme() {
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                document.body.classList.remove('dark-mode');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+
+        function searchHistory() {
+            const searchTerm = searchBox.value.toLowerCase();
+            const historyItems = historyList.querySelectorAll('.history-item');
+
+            historyItems.forEach(item => {
+                const question = item.querySelector('.history-question').textContent.toLowerCase();
+                const answer = item.querySelector('.history-answer').textContent.toLowerCase();
+
+                if (question.includes(searchTerm) || answer.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        async function createNewSession() {
+            showLoading();
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/create_session`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to open a case session');
+                }
+
+                const data = await response.json();
+                currentSessionId = data.session_id;
+
+                sessionInfo.textContent = `Session: ${currentSessionId.slice(0, 8)}...`;
+
+                clearChatHistory();
+
+                await loadHistory();
+
+            } catch (error) {
+                console.error('Failed to open a case session:', error);
+                alert('Failed to open a case session. Refresh and try again.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function loadSources() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/sources`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load sources');
+                }
+
+                const data = await response.json();
+
+                sourceFilter.innerHTML = '<option value="">All sources</option>';
+
+                data.sources.forEach(source => {
+                    const option = document.createElement('option');
+                    option.value = source;
+                    option.textContent = source;
+                    sourceFilter.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Failed to load sources:', error);
+            }
+        }
+
+        async function loadHistory() {
+            if (!currentSessionId) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/history/${currentSessionId}`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load case history');
+                }
+
+                const data = await response.json();
+
+                historyList.innerHTML = '';
+
+                const sessionItem = document.createElement('div');
+                sessionItem.className = 'history-item';
+                sessionItem.innerHTML = `
+                    <div class="history-question">Case ${currentSessionId.slice(0, 8)}...</div>
+                    <div class="history-answer">${data.history.length} turns</div>
+                `;
+
+                sessionItem.addEventListener('click', () => {
+
+                    clearChatHistory();
+
+                    data.history.forEach(item => {
+                        addMessage('user', item.question);
+                        addMessage('system', item.answer);
+                    });
+
+                    scrollToBottom();
+                });
+
+                historyList.appendChild(sessionItem);
+
+            } catch (error) {
+                console.error('Failed to load case history:', error);
+            }
+        }
+
+        async function clearHistory() {
+            if (!currentSessionId) return;
+
+            if (!confirm('Clear all history for this case?')) {
+                return;
+            }
+
+            showLoading();
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/history/${currentSessionId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to clear case history');
+                }
+
+                historyList.innerHTML = '';
+
+                clearChatHistory();
+
+                chatHistory.innerHTML = `
+                    <div class="message system-message">
+                        <div class="message-header">
+                            <div class="avatar">IA</div>
+                            <span>Claims assistant</span>
+                        </div>
+                        <div class="message-content">
+                            Case history cleared. Ask another claims question.
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Failed to clear case history:', error);
+                alert('Failed to clear case history');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function clearChatHistory() {
+            chatHistory.innerHTML = `
+                <div class="message system-message">
+                    <div class="message-header">
+                        <div class="avatar">IA</div>
+                        <span>Claims assistant</span>
+                    </div>
+                    <div class="message-content">
+                        Hello. I am Insurance RAG Assistant. Ask about policy clauses, medical records, or similar cases.
+                    </div>
+                </div>
+            `;
+        }
+
+        function showLoading() {
+            loadingOverlay.style.visibility = 'visible';
+        }
+
+        function hideLoading() {
+            loadingOverlay.style.visibility = 'hidden';
+        }
+
+        async function sendMessage() {
+            const query = chatInput.value.trim();
+            const filter = sourceFilter.value;
+
+            if (!query || isResponseInProgress) return;
+
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+
+            addMessage('user', query);
+
+            isResponseInProgress = true;
+
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+            chatHistory.appendChild(typingIndicator);
+
+            scrollToBottom();
+
+            try {
+
+                const response = await fetch(`${API_BASE_URL}/api/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        source_filter: filter,
+                        session_id: currentSessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Claims query failed');
+                }
+
+                const data = await response.json();
+
+                if (typingIndicator.parentNode) {
+                    chatHistory.removeChild(typingIndicator);
+                }
+
+                if (data.is_streaming) {
+
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'message system-message';
+
+                    const headerElement = document.createElement('div');
+                    headerElement.className = 'message-header';
+                    headerElement.innerHTML = `
+                        <div class="avatar">IA</div>
+                        <span>Claims assistant</span>
+                    `;
+
+                    const contentElement = document.createElement('div');
+                    contentElement.className = 'message-content';
+                    contentElement.innerHTML = '';
+
+                    messageElement.appendChild(headerElement);
+                    messageElement.appendChild(contentElement);
+                    chatHistory.appendChild(messageElement);
+
+                    await handleStreamingResponse(query, filter, contentElement);
+                } else {
+
+                    addMessage('system', data.answer);
+                }
+
+                await loadHistory();
+
+            } catch (error) {
+                console.error('Failed to send the claims question:', error);
+
+                if (typingIndicator.parentNode) {
+                    chatHistory.removeChild(typingIndicator);
+                }
+
+                addMessage('system', `Sorry, an error occurred: ${error.message}`);
+            } finally {
+
+                isResponseInProgress = false;
+
+                scrollToBottom();
+            }
+        }
+
+        async function handleStreamingResponse(query, filter, contentElement) {
+
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close();
+            }
+
+            return new Promise((resolve, reject) => {
+
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}${API_BASE_URL}/api/stream`;
+
+                socket = new WebSocket(wsUrl);
+
+                let accumulatedContent = '';
+
+                socket.onopen = function() {
+                    console.log('WebSocket connected');
+
+                    socket.send(JSON.stringify({
+                        query: query,
+                        source_filter: filter,
+                        session_id: currentSessionId
+                    }));
+                };
+
+                socket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+
+                    switch (data.type) {
+                        case 'start':
+                            console.log('Stream started');
+                            break;
+
+                        case 'token':
+
+                            accumulatedContent += data.token;
+
+                            contentElement.innerHTML = marked.parse(accumulatedContent);
+                            scrollToBottom();
+                            break;
+
+                        case 'end':
+                            console.log('Stream ended');
+                            socket.close();
+                            resolve();
+                            break;
+
+                        case 'error':
+                            console.error('Stream error:', data.error);
+                            contentElement.innerHTML += `<p>[Error: ${data.error}]</p>`;
+                            socket.close();
+                            reject(new Error(data.error));
+                            break;
+                    }
+                };
+
+                socket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    contentElement.innerHTML += '<p>[Connection error]</p>';
+                    reject(error);
+                };
+
+                socket.onclose = function() {
+                    console.log('WebSocket closed');
+                    resolve();
+                };
+            });
+        }
+
+        function addMessage(type, content) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type === 'user' ? 'user-message' : 'system-message'}`;
+
+            const headerElement = document.createElement('div');
+            headerElement.className = 'message-header';
+
+            if (type === 'user') {
+                headerElement.innerHTML = `
+                    <div class="avatar">Ad</div>
+                    <span>Adjuster</span>
+                `;
+            } else {
+                headerElement.innerHTML = `
+                    <div class="avatar">IA</div>
+                    <span>Claims assistant</span>
+                `;
+            }
+
+            const contentElement = document.createElement('div');
+            contentElement.className = 'message-content';
+
+            contentElement.innerHTML = marked.parse(content);
+
+            messageElement.appendChild(headerElement);
+            messageElement.appendChild(contentElement);
+            chatHistory.appendChild(messageElement);
+
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    </script>
+</body>
+</html>
