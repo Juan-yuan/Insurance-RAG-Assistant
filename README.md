@@ -10,15 +10,15 @@ This repository is that system: ingest policy clauses, medical guidelines, and h
 
 | Layer | Stack                                                                           |
 | --- |---------------------------------------------------------------------------------|
-| Language & serving | Python                                                                          |
-| Vector database | Milvus (multi-collection isolation via `source`: clause / medical / case)       |
-| Intent routing | Fine-tuned BERT (claims vs general) + 4-class claims scene router               |
-| Hybrid retrieval | BGE-M3 dense + sparse dual recall, weighted fusion, domain reranker             |
+| Language & serving | Python, FastAPI (HTTP FAQ hits + WebSocket token stream) |
+| Vector database | Milvus (multi-collection isolation via `source`: clause / medical / case) |
+| Intent routing | Fine-tuned BERT (claims vs general) + 4-class claims scene router |
+| Hybrid retrieval | BGE-M3 dense + sparse dual recall, weighted fusion, domain reranker |
 | Generation | OpenAI `gpt-5-mini` (`config.ini [llm] model`) |
 | Evaluation | RagAS-style metrics: context relevance, answer faithfulness, retrieval hit rate |
-| Memory | LangGraph `MemorySaver` keyed by adjuster + case                                |
-| Cache / structured QA | Redis, MySQL, BM25                                                              |
-| Runtime | Docker (Milvus, Redis, Attu), LangChain                                         |
+| Memory | MySQL `conversations` keyed by `session_id` (last 5 turns); LangGraph `MemorySaver` in Version 1 CLI |
+| Cache / structured QA | Redis, MySQL, BM25 |
+| Runtime | Docker (Milvus, Redis, Attu), LangChain |
 
 ## Business Challenges
 
@@ -49,7 +49,8 @@ adjuster query
   → BGE-M3 hybrid search (filter source = clause | medical | case)
   → parent dedupe + rerank
   → generate with {history} + {context} + citations
-  → write turn to per-case memory
+  → stream tokens to the FastAPI UI
+  → INSERT the turn into MySQL `conversations` (`session_id`)
 ```
 
 Code:
@@ -61,14 +62,16 @@ Code:
 - `integrated_qa_system/rag_qa/core/rag_system.py`
 - `integrated_qa_system/rag_qa/core/document_processor.py`
 - `integrated_qa_system/rag_qa/core/vector_store.py`
+- `integrated_qa_system/app.py`
+- `integrated_qa_system/main_history_stream_version.py`
 
-Deeper retrieval notes: [`RAG_README.md`](./RAG_README.md)
+Deeper retrieval notes: [`RAG_README.md`](./RAG_README.md). CLI + stream wiring: [`INTEGRATION_README.md`](./INTEGRATION_README.md).
 
 ---
 
 ## Setup
 
-All commands below assume you start from the `Education-Assistant/` directory.
+All commands below assume you start from the `Insurance-RAG-Assistant/` directory.
 
 ### 1. Create the Conda Environment
 
@@ -148,7 +151,7 @@ If the page still shows email/password, hard-refresh the browser (`Cmd+Shift+R`)
 
 ### 5. Test Milvus and Redis from Python
 
-Stay in the `edu_rag` environment. From `Education-Assistant/`:
+Stay in the `edu_rag` environment. From `Insurance-RAG-Assistant/`:
 
 ```bash
 python milvus_redis/test_milvus.py
@@ -183,3 +186,25 @@ Then open `http://<your-lan-ip>:30000` on the other device. The Connect address 
 Collections are filtered by `source`: `clause` (policy language), `medical` (bills / guidelines), `case` (historical adjudications).
 
 <p><img src="./images/milvus.png" alt="milvus schema" width="700" /></p>
+
+### 8. Run the Insurance Assistant UI
+
+<p><img src="./images/ui_system_design.png.png" alt="Insurance Assistant System Design" width="700" /></p>
+
+FastAPI is the serving layer for the running system. `POST /api/query` returns a full answer when BM25 hits a canned FAQ; when RAG is needed, the UI opens WebSocket `/api/stream` and renders the first-pass opinion token by token.
+
+```bash
+cd integrated_qa_system
+python app.py
+```
+
+Open **http://127.0.0.1:8080**. `HOST` / `PORT` default to `0.0.0.0:8080`.
+
+<p><img src="./images/ui.png" alt="Insurance Assistant System" width="700" /></p>
+
+Each browser case is a `session_id` (UUID from **New case**). After every turn the system inserts `(session_id, question, answer, timestamp)` into MySQL `conversations`, keeps the latest five rows for that session, and injects them as `{history}` on the next question. **Clear history** deletes only that session's rows.
+
+<p><img src="./images/history_data.png" alt="session history in MySQL" width="700" /></p>
+
+### Getting stronger
+<p><img src="./images/system_versions.png" alt="session history in MySQL" width="700" /></p>

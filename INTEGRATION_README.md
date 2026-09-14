@@ -71,4 +71,24 @@ question
                yield ("", True)             # end of stream
 ```
 
----
+### Run the Insurance Assistant UI
+
+<p><img src="./images/ui_system_design.png.png" alt="Insurance Assistant System Design" width="700" /></p>
+
+FastAPI is the serving layer for the running system. `POST /api/query` returns a full answer when BM25 hits a canned FAQ; when RAG is needed, the UI opens WebSocket `/api/stream` and renders the first-pass opinion token by token.
+
+```bash
+cd integrated_qa_system
+python app.py
+```
+
+Open **http://127.0.0.1:8080**. `HOST` / `PORT` default to `0.0.0.0:8080`.
+
+<p><img src="./images/ui.png" alt="Insurance Assistant System" width="700" /></p>
+
+Each browser case is a `session_id` (UUID from **New case**). After every turn the system inserts `(session_id, question, answer, timestamp)` into MySQL `conversations`, keeps the latest five rows for that session, and injects them as `{history}` on the next question. **Clear history** deletes only that session's rows.
+
+<p><img src="./images/history_data.png" alt="session history in MySQL" width="700" /></p>
+
+### Getting stronger
+<p><img src="./images/system_versions.png" alt="session history in MySQL" width="700" /></p>
