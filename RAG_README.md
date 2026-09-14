@@ -7,8 +7,10 @@ Code:
 - `integrated_qa_system/rag_qa/core/query_classifier.py`
 - `integrated_qa_system/rag_qa/core/strategy_selector.py`
 - `integrated_qa_system/rag_qa/core/prompts.py`
-- `integrated_qa_system/rag_qa/core/memory.py`
-- `integrated_qa_system/rag_qa/core/rag_system.py`
+- `integrated_qa_system/rag_qa/core/memory.py` (Version 1 in-process history)
+- `integrated_qa_system/rag_qa/core/rag_system.py` (Version 1 blocking generate)
+- `integrated_qa_system/rag_qa/core/new_rag_system.py` (Version 2 history + stream)
+- `integrated_qa_system/main_history_stream_version.py` (Version 2 CLI)
 - `integrated_qa_system/rag_qa/core/document_processor.py`
 - `integrated_qa_system/rag_qa/core/vector_store.py`
 - `integrated_qa_system/rag_qa/edu_text_spliter/`
@@ -126,6 +128,8 @@ I use two complementary controls:
 2. **Summary compression (semantic retention).** When the turn count crosses a threshold, the LLM compresses the older dialogue into a case-profile summary (goals, constraints, names, disputed clauses, unpaid amounts). The summary replaces the dropped turns. You lose verbatim chat, not the facts that later opinions still need.
 
 The window is the default for short cases. Compression kicks in when *n* is not enough and dropping history would lose the case state.
+
+This is **Version 1**: in-process LangGraph `MemorySaver`, keyed by adjuster + case. History dies on restart.
 
 Code: `integrated_qa_system/rag_qa/core/memory.py`, consumed by `rag_system.py` and `rag_prompt_with_history()`.
 
