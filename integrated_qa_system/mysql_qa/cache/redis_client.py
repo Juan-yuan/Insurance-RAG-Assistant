@@ -43,7 +43,7 @@ class RedisClient:
 
     def get_answer(self, query):
         try:
-            answer = self.client.get(f"answer:{query}")
+            answer = self.client.get(f"{config.REDIS_ANSWER_PREFIX}{query}")
             if answer:
                 self.logger.info(f'Redis answer hit: {query}')
                 try:
@@ -62,14 +62,14 @@ class RedisClient:
             count = 0
             pipe = self.client.pipeline()
             for _, row in data.iterrows():
-                question = str(row['问题']).strip() if pd.notna(row['问题']) else ''
-                answer = row['答案'] if pd.notna(row['答案']) else ''
+                question = str(row['Question']).strip() if pd.notna(row['Question']) else ''
+                answer = row['Answer'] if pd.notna(row['Answer']) else ''
                 if not question:
                     continue
                 questions.append(question)
-                pipe.set(f'answer:{question}', json.dumps(answer, ensure_ascii=False))
+                pipe.set(f'{config.REDIS_ANSWER_PREFIX}{question}', json.dumps(answer, ensure_ascii=False))
                 count += 1
-            pipe.set('qa_original_questions', json.dumps(questions, ensure_ascii=False))
+            pipe.set(config.REDIS_QA_ORIGINAL_KEY, json.dumps(questions, ensure_ascii=False))
             pipe.execute()
             self.logger.info(f'Redis loaded {count} Q&A rows from {csv_path}')
             return count

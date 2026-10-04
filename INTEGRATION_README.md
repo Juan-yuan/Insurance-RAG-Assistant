@@ -82,7 +82,7 @@ cd integrated_qa_system
 python app.py
 ```
 
-Open **http://127.0.0.1:8080**. `HOST` / `PORT` default to `0.0.0.0:8080`.
+Open the host and port from the private runtime configuration.
 
 <p><img src="./images/ui.png" alt="Insurance Assistant System" width="700" /></p>
 

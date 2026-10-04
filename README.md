@@ -14,7 +14,7 @@ This repository is that system: ingest policy clauses, medical guidelines, and h
 | Vector database | Milvus (multi-collection isolation via `source`: clause / medical / case) |
 | Intent routing | Fine-tuned BERT (claims vs general) + 4-class claims scene router |
 | Hybrid retrieval | BGE-M3 dense + sparse dual recall, weighted fusion, domain reranker |
-| Generation | OpenAI `gpt-5-mini` (`config.ini [llm] model`) |
+| Generation | OpenAI-compatible chat model supplied at runtime |
 | Evaluation | RagAS-style metrics: context relevance, answer faithfulness, retrieval hit rate |
 | Memory | MySQL `conversations` keyed by `session_id` (last 5 turns); LangGraph `MemorySaver` in Version 1 CLI |
 | Cache / structured QA | Redis, MySQL, BM25 |
@@ -117,9 +117,9 @@ The following services should be `Up`:
 
 | Container           | Image                    | Host port | Purpose              |
 |---------------------|--------------------------|-----------|----------------------|
-| `milvus-standalone` | `milvusdb/milvus:v2.4.4` | `19530`   | Milvus gRPC          |
-| `milvus-attu`       | `zilliz/attu:v2.4.12`    | `30000`   | Attu web UI          |
-| `milvus-redis`      | `redis:latest`           | `8379`    | Redis (password `1234`) |
+| `milvus-standalone` | `milvusdb/milvus:v2.4.4` | private   | Milvus gRPC          |
+| `milvus-attu`       | `zilliz/attu:v2.4.12`    | private   | Attu web UI          |
+| `milvus-redis`      | `redis:latest`           | private   | Redis |
 | `milvus-minio`      | MinIO                    | (internal)| Object storage       |
 | `milvus-etcd`       | etcd                     | (internal)| Metadata             |
 
@@ -134,16 +134,9 @@ docker compose down
 
 ### 4. Open Attu and Connect to Milvus
 
-Open **http://127.0.0.1:30000/** in your browser.
+Open the Attu port from your private runtime configuration.
 
-You should see **Connect to Milvus Server** (not an email/password form). Use these values:
-
-- **Milvus Address:** `milvus-standalone:19530` (already pre-filled)
-- **Milvus Database:** `edurag` (Insurance RAG Assistant vector store)
-- **Authentication:** leave **off**
-- Click **Connect**
-
-`milvus-standalone:19530` is the address inside the Docker network. Do not use `127.0.0.1:19530` in Attu; that address points at the Attu container itself, not Milvus.
+You should see **Connect to Milvus Server** (not an email/password form). The Milvus address, database name, and authentication flag come from that same private configuration. Use the Docker-network address for Milvus, not the Attu container's own loopback.
 
 If the page still shows email/password, hard-refresh the browser (`Cmd+Shift+R`) or try a private window. The old Attu v3 page is often cached.
 
@@ -166,10 +159,7 @@ Redis value: Hello, Redis!
 
 <p><img src="./images/db_redis_connection.png" alt="milvus redis connection" width="700" /></p>
 
-The test script connects with:
-
-- Milvus: `localhost:19530`
-- Redis: `localhost:8379`, password `1234`
+The test script reads the Milvus and Redis connection settings from the private runtime configuration.
 
 ### 6. Access Attu from Another Device on the Same Network (Optional)
 
@@ -179,7 +169,7 @@ This is only needed if you want to open Attu from a phone or another computer. O
 ipconfig getifaddr en0
 ```
 
-Then open `http://<your-lan-ip>:30000` on the other device. The Connect address in Attu is still `milvus-standalone:19530`.
+Then open the Attu port on that address. The Connect address in Attu stays the Docker-network Milvus address from the private runtime configuration.
 
 ### 7. Milvus schema
 
@@ -198,7 +188,7 @@ cd integrated_qa_system
 python app.py
 ```
 
-Open **http://127.0.0.1:8080**. `HOST` / `PORT` default to `0.0.0.0:8080`.
+Open the host and port from the private runtime configuration.
 
 <p><img src="./images/ui.png" alt="Insurance Assistant System" width="700" /></p>
 

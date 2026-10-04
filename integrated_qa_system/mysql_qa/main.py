@@ -21,7 +21,7 @@ class MySQLQASystem:
     def query(self, query):
         start_time = time.time()
         self.logger.info(f'Processing query: {query}')
-        answer, _ = self.bm25_search.search(query, threshold=0.85)
+        answer, _ = self.bm25_search.search(query)
         if answer:
             self.logger.info(f'MySQL answer: {answer}')
         else:

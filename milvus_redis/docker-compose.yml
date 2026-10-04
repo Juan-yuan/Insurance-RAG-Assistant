@@ -1,4 +1,3 @@
-# Redis password: 1234
 # Milvus standalone for local Attu + Python clients.
 # On Apple Silicon, milvusdb/milvus:v2.4.4 is amd64-only and runs under emulation.
 
@@ -24,11 +23,13 @@ services:
 
   minio:
     container_name: milvus-minio
-    # Docker Hub minio/minio is no longer publicly pullable; Quay still hosts this tag.
-    image: quay.io/minio/minio:RELEASE.2023-03-20T20-16-18Z
+    # quay.io/minio/minio now returns 401. This Milvus-published tag is already local.
+    image: milvusdb/minio:RELEASE.2024-12-18T13-15-44Z
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/minio_data
     command: minio server /minio_data --console-address ":9001"
@@ -52,8 +53,8 @@ services:
     volumes:
       - milvus_data:/var/lib/milvus
     ports:
-      - "19530:19530"
-      - "9091:9091"
+      - "${MILVUS_PORT}:19530"
+      - "${MILVUS_METRICS_PORT}:9091"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 15s
@@ -72,11 +73,10 @@ services:
     image: redis:latest
     restart: always
     ports:
-      - "8379:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
       - redis_data:/data
-    # Redis password: 1234
-    command: redis-server --requirepass 1234
+    command: redis-server --requirepass ${REDIS_PASSWORD}
 
   # Attu GUI for Milvus 2.4.x. Do not use zilliz/attu:latest (v3.x):
   # that image shows an email/password login and does not support Milvus 2.x.
@@ -84,9 +84,9 @@ services:
     container_name: milvus-attu
     image: zilliz/attu:v2.4.12
     environment:
-      MILVUS_URL: milvus-standalone:19530
+      MILVUS_URL: ${MILVUS_ATTU_URL}
     ports:
-      - "30000:3000"
+      - "${ATTU_PORT}:3000"
     depends_on:
       standalone:
         condition: service_healthy

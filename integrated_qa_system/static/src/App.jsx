@@ -12,7 +12,7 @@ const App = () => {
   const validSources = ['clause', 'medical', 'case'];
 
   useEffect(() => {
-    fetch('http://localhost:8080/query', { method: 'POST' })
+    fetch('/query', { method: 'POST' })
       .then(res => res.json())
       .then(data => setSessionId(data.session_id))
       .catch(err => console.error('Failed to start a case session:', err));
@@ -37,7 +37,7 @@ const App = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/query', {
+      const response = await fetch('/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -68,7 +68,7 @@ const App = () => {
         setAnswer(data.answer);
       }
 
-      const historyRes = await fetch(`http://localhost:8080/history/${sessionId}`);
+      const historyRes = await fetch(`/history/${sessionId}`);
       const historyData = await historyRes.json();
       setHistory(historyData.history);
     } catch (err) {
@@ -84,7 +84,7 @@ const App = () => {
 
   const handleClearHistory = async () => {
     try {
-      await fetch(`http://localhost:8080/history/${sessionId}`, { method: 'DELETE' });
+      await fetch(`/history/${sessionId}`, { method: 'DELETE' });
       setHistory([]);
       setAnswer('');
       alert('Case history cleared');

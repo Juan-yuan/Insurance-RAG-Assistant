@@ -18,6 +18,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from insurance_rag.config import config
 from main_history_stream_version import IntegratedQASystem
 
 STATIC_DIR = os.path.join(_HERE, "static")
@@ -39,24 +40,7 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 
 qa_system = None
 
-GREETING_PATTERNS = [
-    {
-        "pattern": r"^(hi|hello|hey)\b",
-        "response": "Hello. I am the Insurance RAG Assistant. I can help review coverage against policy clauses, medical records, and similar cases.",
-    },
-    {
-        "pattern": r"^(who are you|what('s| is) your name|your name)\b",
-        "response": "I am the Insurance RAG Assistant, a claims-review helper for policy clauses, medical records, and similar cases.",
-    },
-    {
-        "pattern": r"^(are you (there|here)|anyone there)\b",
-        "response": "I am here. Ask about deductibles, waiting periods, exclusions, or whether a bill is payable under the policy.",
-    },
-    {
-        "pattern": r"^(what are you doing|what('re| are) you up to)\b",
-        "response": "Standing by to review coverage questions against policy clauses, medical records, and similar cases. How can I help?",
-    },
-]
+GREETING_PATTERNS = config.GREETING_RULES
 
 
 class QueryRequest(BaseModel):
@@ -143,7 +127,7 @@ async def query(request: QueryRequest):
             "processing_time": time.time() - start_time,
         }
     system = get_qa_system()
-    answer, need_rag = system.bm25_search.search(request.query, threshold=0.85)
+    answer, need_rag = system.bm25_search.search(request.query, threshold=system.config.BM25_THRESHOLD)
     if need_rag:
         return {
             "answer": "Please use the WebSocket endpoint for a streamed response",
@@ -263,6 +247,6 @@ async def get_sources():
 if __name__ == "__main__":
     import uvicorn
 
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8080))
+    host = config.HOST
+    port = config.PORT
     uvicorn.run("app:app", host=host, port=port, reload=False)

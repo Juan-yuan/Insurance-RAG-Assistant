@@ -41,16 +41,7 @@ class IntegratedQASystem:
         :return:
         """
         try:
-            self.mysql_client.cursor.execute("""
-                create table if not exists conversations(
-                    id INT AUTO_INCREMENT PRIMARY KEY,         
-                    session_id VARCHAR(36) NOT NULL,            
-                    question TEXT NOT NULL,                    
-                    answer TEXT NOT NULL,                    
-                    timestamp DATETIME NOT NULL,         
-                    INDEX idx_session_id (session_id)
-                )
-            """)
+            self.mysql_client.cursor.execute(self.config.SQL_CREATE_CONVERSATIONS)
             self.mysql_client.connection.commit()
             self.logger.info("Conversation history table initialized successfully")
         except pymysql.MySQLError as e:
@@ -67,7 +58,7 @@ class IntegratedQASystem:
             completion = self.client.chat.completions.create(
                 model=self.config.LLM_MODEL,  # Use the LLM from config.
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},  # System prompt.
+                    {"role": "system", "content": self.config.LLM_STREAM_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},  # User prompt.
                 ],
                 timeout=30,
@@ -89,13 +80,9 @@ class IntegratedQASystem:
         :return: list of dicts, e.g. [{'question': question, 'answer': answer}].
         """
         try:
-            self.mysql_client.cursor.execute("""
-                 SELECT question, answer
-                 FROM conversations
-                 WHERE session_id = %s
-                 ORDER BY timestamp DESC
-                     LIMIT %s
-                 """, (session_id, 5))
+            self.mysql_client.cursor.execute(
+                self.config.SQL_SELECT_RECENT_HISTORY, (session_id, 5)
+            )
             history = [{"question": row[0], "answer": row[1]} for row in self.mysql_client.cursor.fetchall()]
             return history[::-1]
         except pymysql.MySQLError as e:
@@ -120,22 +107,13 @@ class IntegratedQASystem:
         :return:
         """
         try:
-            self.mysql_client.cursor.execute("""
-                 INSERT INTO conversations (session_id, question, answer, timestamp)
-                 VALUES (%s, %s, %s, NOW())
-                 """, (session_id, question, answer))
+            self.mysql_client.cursor.execute(
+                self.config.SQL_INSERT_CONVERSATION, (session_id, question, answer)
+            )
             history = self._fetch_recent_history(session_id)
-            self.mysql_client.cursor.execute("""
-                 DELETE
-                 FROM conversations
-                 WHERE session_id = %s
-                   AND id NOT IN (SELECT id
-                      FROM (SELECT id
-                            FROM conversations
-                            WHERE session_id = %s
-                            ORDER BY timestamp DESC
-                                LIMIT %s) AS sub)
-                 """, (session_id, session_id, 5))
+            self.mysql_client.cursor.execute(
+                self.config.SQL_DELETE_OLD_CONVERSATIONS, (session_id, session_id, 5)
+            )
             self.mysql_client.connection.commit()
             self.logger.info(f"Session {session_id} history updated successfully")
             return history
@@ -156,11 +134,8 @@ class IntegratedQASystem:
         :return: True if cleared successfully, False otherwise.
         """
         try:
-            self.mysql_client.cursor.execute("""
-                 DELETE
-                 FROM conversations
-                 WHERE session_id = %s
-                 """, (session_id,)
+            self.mysql_client.cursor.execute(
+                self.config.SQL_DELETE_SESSION, (session_id,)
             )
             self.mysql_client.connection.commit()
             self.logger.info(f"Session {session_id} history cleared")
@@ -182,7 +157,7 @@ class IntegratedQASystem:
         self.logger.info(f"Handling query: '{query}' (session ID: {session_id})")
 
         history = self.get_session_history(session_id) if session_id else []
-        answer, need_rag = self.bm25_search.search(query, threshold=0.85)
+        answer, need_rag = self.bm25_search.search(query, threshold=self.config.BM25_THRESHOLD)
 
         if answer:
             self.logger.info(f"MySQL answer: {answer}")

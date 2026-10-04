@@ -1,90 +1,90 @@
 import ast
-import configparser
+import json
 import os
+import sys
 
-def _load_env_files():
-    here = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        os.path.abspath(os.path.join(here, '..', '..', '.env')),
-        os.path.abspath(os.path.join(here, '..', '.env')),
-    ]
-    for path in candidates:
-        if not os.path.isfile(path):
-            continue
-        with open(path, encoding='utf-8') as env_file:
-            for line in env_file:
-                line = line.strip()
-                if not line or line.startswith('#') or '=' not in line:
-                    continue
-                key, _, value = line.partition('=')
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and not os.environ.get(key):
-                    os.environ[key] = value
-    lowercase_key = os.environ.get('openai_api_key', '').strip()
-    if lowercase_key and not os.environ.get('OPENAI_API_KEY'):
-        os.environ['OPENAI_API_KEY'] = lowercase_key
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
-def _first_env(*names, default=''):
-    for name in names:
-        value = os.getenv(name)
-        if value:
-            return value
-    return default
+from runtime_env import load_env, require_env, require_int
 
-_load_env_files()
-current_file_path = os.path.abspath(__file__)
-current_dir_path = os.path.dirname(current_file_path)
-project_root = os.path.dirname(current_dir_path)
-config_file_path = os.path.join(project_root, 'config.ini')
+load_env()
+
 
 class Config:
 
-    def __init__(self, config_file=config_file_path):
+    def __init__(self):
         self.PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.LOG_DIR = os.path.join(self.PROJECT_ROOT, 'logs')
         self.DATA_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/data')
         self.MODELS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/models')
         self.EDU_DOCUMENT_LOADERS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/edu_document_loaders')
-        if not config_file:
-            config_file = os.path.join(self.PROJECT_ROOT, 'config.ini')
-        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-        self.config.read(config_file, encoding='utf-8')
-        self.MYSQL_HOST = os.getenv('MYSQL_HOST', self.config.get('mysql', 'host', fallback='localhost'))
-        self.MYSQL_USER = os.getenv('MYSQL_USER', self.config.get('mysql', 'user', fallback='root'))
-        self.MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', self.config.get('mysql', 'password', fallback='123456'))
-        self.MYSQL_DATABASE = os.getenv('MYSQL_DATABASE',
-                                        self.config.get('mysql', 'database', fallback='subjects_kg'))
-        self.REDIS_HOST = os.getenv('REDIS_HOST', self.config.get('redis', 'host', fallback='localhost'))
-        self.REDIS_PORT = int(os.getenv('REDIS_PORT') or self.config.get('redis', 'port', fallback='8379'))
-        self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', self.config.get('redis', 'password', fallback='1234'))
-        self.REDIS_DB = int(os.getenv('REDIS_DB') or self.config.get('redis', 'db', fallback='0'))
-        self.MILVUS_HOST = os.getenv('MILVUS_HOST', self.config.get('milvus', 'host', fallback='localhost'))
-        self.MILVUS_PORT = os.getenv('MILVUS_PORT', self.config.get('milvus', 'port', fallback='19530'))
-        self.MILVUS_DATABASE_NAME = os.getenv('MILVUS_DATABASE_NAME',
-                                              self.config.get('milvus', 'database_name', fallback='edurag'))
-        self.MILVUS_COLLECTION_NAME = os.getenv('MILVUS_COLLECTION_NAME',
-                                                self.config.get('milvus', 'collection_name',
-                                                                fallback='edurag_final'))
-        self.LLM_MODEL = self.config.get('llm', 'model', fallback='gpt-5-mini')
-        ini_api_key = self.config.get('llm', 'openai_api_key', fallback='')
-        self.OPENAI_API_KEY = _first_env('OPENAI_API_KEY', 'openai_api_key', default=ini_api_key)
-        self.OPENAI_BASE_URL = self.config.get('llm', 'openai_base_url', fallback='https://api.openai.com/v1')
-        self.PARENT_CHUNK_SIZE = self.config.getint('retrieval', 'parent_chunk_size', fallback=1200)
-        self.CHILD_CHUNK_SIZE = self.config.getint('retrieval', 'child_chunk_size', fallback=300)
-        self.CHUNK_OVERLAP = self.config.getint('retrieval', 'chunk_overlap', fallback=50)
-        self.RETRIEVAL_K = self.config.getint('retrieval', 'retrieval_k', fallback=5)
-        self.CANDIDATE_M = self.config.getint('retrieval', 'candidate_m', fallback=2)
-        self.VALID_SOURCES = ast.literal_eval(
-            self.config.get('app', 'valid_sources', fallback='["clause", "medical", "case"]'))
-        self.CUSTOMER_SERVICE_PHONE = self.config.get('app', 'customer_service_phone', fallback='13112345678')
-        self.LOG_FILE = self.config.get('logger', 'log_file', fallback='logs/app.log')
+        self.MYSQL_HOST = require_env('MYSQL_HOST')
+        self.MYSQL_USER = require_env('MYSQL_USER')
+        self.MYSQL_PASSWORD = require_env('MYSQL_PASSWORD')
+        self.MYSQL_DATABASE = require_env('MYSQL_DATABASE')
+        self.REDIS_HOST = require_env('REDIS_HOST')
+        self.REDIS_PORT = require_int('REDIS_PORT')
+        self.REDIS_PASSWORD = require_env('REDIS_PASSWORD')
+        self.REDIS_DB = require_int('REDIS_DB')
+        self.REDIS_QA_ORIGINAL_KEY = require_env('REDIS_QA_ORIGINAL_KEY')
+        self.REDIS_QA_TOKENIZED_KEY = require_env('REDIS_QA_TOKENIZED_KEY')
+        self.REDIS_ANSWER_PREFIX = require_env('REDIS_ANSWER_PREFIX')
+        self.MILVUS_HOST = require_env('MILVUS_HOST')
+        self.MILVUS_PORT = require_env('MILVUS_PORT')
+        self.MILVUS_DATABASE_NAME = require_env('MILVUS_DATABASE_NAME')
+        self.MILVUS_COLLECTION_NAME = require_env('MILVUS_COLLECTION_NAME')
+        self.MILVUS_URI = require_env('MILVUS_URI')
+        self.LLM_MODEL = require_env('LLM_MODEL')
+        self.OPENAI_API_KEY = require_env('OPENAI_API_KEY')
+        self.OPENAI_BASE_URL = require_env('OPENAI_BASE_URL')
+        self.EMBEDDING_MODEL = require_env('EMBEDDING_MODEL')
+        self.BGE_M3_MODEL = require_env('BGE_M3_MODEL')
+        self.BGE_RERANKER_MODEL = require_env('BGE_RERANKER_MODEL')
+        self.BERT_MODEL_NAME = require_env('BERT_MODEL_NAME')
+        self.BERT_MODEL_ALT = require_env('BERT_MODEL_ALT')
+        self.PARENT_CHUNK_SIZE = require_int('PARENT_CHUNK_SIZE')
+        self.CHILD_CHUNK_SIZE = require_int('CHILD_CHUNK_SIZE')
+        self.CHUNK_OVERLAP = require_int('CHUNK_OVERLAP')
+        self.RETRIEVAL_K = require_int('RETRIEVAL_K')
+        self.CANDIDATE_M = require_int('CANDIDATE_M')
+        self.BM25_THRESHOLD = float(require_env('BM25_THRESHOLD'))
+        self.VALID_SOURCES = ast.literal_eval(require_env('VALID_SOURCES'))
+        if not isinstance(self.VALID_SOURCES, list) or not self.VALID_SOURCES:
+            raise RuntimeError('Missing required runtime configuration: VALID_SOURCES')
+        self.CUSTOMER_SERVICE_PHONE = require_env('CUSTOMER_SERVICE_PHONE')
+        self.LOG_FILE = require_env('LOG_FILE')
+        self.HOST = require_env('HOST')
+        self.PORT = require_int('PORT')
+        self.LLM_SYSTEM_PROMPT = require_env('LLM_SYSTEM_PROMPT')
+        self.LLM_ROUTING_SYSTEM_PROMPT = require_env('LLM_ROUTING_SYSTEM_PROMPT')
+        self.LLM_STREAM_SYSTEM_PROMPT = require_env('LLM_STREAM_SYSTEM_PROMPT')
+        self.PROMPT_RAG = require_env('PROMPT_RAG')
+        self.PROMPT_RAG_WITH_HISTORY = require_env('PROMPT_RAG_WITH_HISTORY')
+        self.PROMPT_HYDE = require_env('PROMPT_HYDE')
+        self.PROMPT_SUBQUERY = require_env('PROMPT_SUBQUERY')
+        self.PROMPT_BACKTRACK = require_env('PROMPT_BACKTRACK')
+        self.PROMPT_STRATEGY = require_env('PROMPT_STRATEGY')
+        self.PROMPT_INTENT = require_env('PROMPT_INTENT')
+        self.PROMPT_CLASSIFIER = require_env('PROMPT_CLASSIFIER')
+        self.GREETING_RULES = json.loads(require_env('GREETING_RULES'))
+        self.FALLBACK_REVIEW = require_env('FALLBACK_REVIEW')
+        self.FALLBACK_GENERAL_ERROR = require_env('FALLBACK_GENERAL_ERROR')
+        self.FALLBACK_CLAIMS_ERROR = require_env('FALLBACK_CLAIMS_ERROR')
+        self.SQL_CREATE_JPKB = require_env('SQL_CREATE_JPKB')
+        self.SQL_INSERT_JPKB = require_env('SQL_INSERT_JPKB')
+        self.SQL_SELECT_QUESTIONS = require_env('SQL_SELECT_QUESTIONS')
+        self.SQL_SELECT_ANSWER = require_env('SQL_SELECT_ANSWER')
+        self.SQL_CREATE_CONVERSATIONS = require_env('SQL_CREATE_CONVERSATIONS')
+        self.SQL_SELECT_RECENT_HISTORY = require_env('SQL_SELECT_RECENT_HISTORY')
+        self.SQL_INSERT_CONVERSATION = require_env('SQL_INSERT_CONVERSATION')
+        self.SQL_DELETE_OLD_CONVERSATIONS = require_env('SQL_DELETE_OLD_CONVERSATIONS')
+        self.SQL_DELETE_SESSION = require_env('SQL_DELETE_SESSION')
+        os.environ['OPENAI_API_KEY'] = self.OPENAI_API_KEY
+
 
 config = Config()
 
 if __name__ == '__main__':
-    config_file = '../config.ini'
-    conf = Config(config_file)
-    print(f'mysql: {conf.MYSQL_HOST}, {conf.MYSQL_USER}, {conf.MYSQL_PASSWORD}, {conf.MYSQL_DATABASE}')
-    print(f'redis: {conf.REDIS_HOST}, {conf.REDIS_PORT}, {conf.REDIS_PASSWORD}, {conf.REDIS_DB}')
-    print(f'log: {conf.LOG_FILE}')
+    print('runtime configuration loaded')

@@ -35,9 +35,7 @@ class IntegratedQASystem:
             self.logger.error(f"MySQL/Redis/BM25 failed to initialize; queries will fall back to RAG: {e}")
         api_key = _openai_api_key()
         if not api_key:
-            self.logger.error(
-                "OPENAI_API_KEY is empty. Put openai_api_key=... in Insurance-RAG-Assistant/.env and rerun."
-            )
+            self.logger.error("Missing required runtime configuration.")
         try:
             self.client = OpenAI(api_key=api_key or None, base_url=self.config.OPENAI_BASE_URL)
         except Exception as e:
@@ -58,7 +56,7 @@ class IntegratedQASystem:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are Insurance RAG Assistant. Write accurate, citable claims opinions.",
+                        "content": self.config.LLM_SYSTEM_PROMPT,
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -75,7 +73,7 @@ class IntegratedQASystem:
         self.logger.info(f"Handling query: '{query}'")
         answer, need_rag = None, True
         if self.bm25_search is not None and getattr(self.bm25_search, "bm25", None) is not None:
-            answer, need_rag = self.bm25_search.search(query, threshold=0.85)
+            answer, need_rag = self.bm25_search.search(query, threshold=self.config.BM25_THRESHOLD)
         if answer:
             self.logger.info(f"MySQL answer: {answer}")
             processing_time = time.time() - start_time

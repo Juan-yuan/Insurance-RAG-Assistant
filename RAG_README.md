@@ -52,8 +52,8 @@ What gets indexed is the child. After a hit, `parent_content` rebuilds the paren
 Why I chose these sizes:
 
 - Child 300: sharper vectors. Clause numbers, deductibles, and headings are easier for hybrid search to hit.
-- Parent 1200: rerank (and later generation) see a full subsection, not half a sentence — required for legal completeness.
-- Overlap 50: sentences on the window edge still line up across adjacent children.
+- Parent chunks stay large enough that rerank and generation see a full subsection, not half a sentence. The sizes are private runtime settings.
+- Overlap keeps sentences on the window edge aligned across adjacent children.
 
 `.md` uses `MarkdownTextSplitter`. Everything else uses `EduRecursiveTextSplitter`. The recursive splitter walks paragraph → sentence → clause → comma until something actually cuts, then collapses extra blank lines. Separators stay in the chunk (`keep_separator=True`), so sentence punctuation is not stripped.
 
@@ -63,7 +63,7 @@ Why I chose these sizes:
 
 ## 3. Index: BGE-M3 + two vector fields in Milvus
 
-Collection: `edurag.edurag_final` (Insurance RAG Assistant vector store). The database is created if missing.
+The Milvus database and collection names are private runtime settings. The database is created if missing.
 
 Fields that actually affect retrieval:
 
@@ -150,7 +150,7 @@ I do not eyeball RAG quality. A labeled claims set (`question`, `contexts`, `ans
 <p><img src="./images/rag_evaluation_params.png" alt="RAGAS evaluation metrics" width="700" /></p>
 
 Script: `integrated_qa_system/rag_qa/rag_assessment/ragas_evaluate.py`  
-Judge LLM: `gpt-5-mini`. Embeddings: `text-embedding-3-small`.  
+The judge model and embedding model are private runtime settings.  
 Dataset: `rag_evaluate_data.json`. Scores land in `ragas_evaluation_results.csv`.
 
 <p><img src="./images/rag_evaluation_result.png" alt="RAGAS evaluation results" width="700" /></p>

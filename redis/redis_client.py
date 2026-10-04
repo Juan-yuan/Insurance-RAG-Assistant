@@ -35,7 +35,7 @@ class RedisClient:
 
     def get_answer(self, query):
         try:
-            answer = self.client.get(f'answer:{query}')
+            answer = self.client.get(f'{Config.REDIS_ANSWER_PREFIX}{query}')
             if answer:
                 self.logger.info(f'Get data from Redis : {query}')
                 return answer

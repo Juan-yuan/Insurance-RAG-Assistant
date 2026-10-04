@@ -1,14 +1,24 @@
+import os
 import random
+import sys
+
 from pymilvus import MilvusClient, DataType, AnnSearchRequest, WeightedRanker, RRFRanker
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+from runtime_env import require_env
+
+
 def operate_db():
-    client = MilvusClient(uri='http://localhost:19530')
+    client = MilvusClient(uri=require_env('MILVUS_URI'))
+    database_name = require_env('MILVUS_DATABASE_NAME')
     databases = client.list_databases()
-    if 'edurag' not in databases:
-        client.create_database(db_name='edurag')
-        print('Created database: edurag successfully')
-    client.using_database(db_name='edurag')
-    print('Using database: edurag successfully')
+    if database_name not in databases:
+        client.create_database(db_name=database_name)
+        print(f'Created database: {database_name} successfully')
+    client.using_database(db_name=database_name)
+    print(f'Using database: {database_name} successfully')
     return client
 
 client = operate_db()

@@ -25,14 +25,7 @@ class MySQLClient:
             raise
 
     def create_table(self):
-        create_table_query = '''
-            create table if not exists jpkb (
-                id int primary key auto_increment,
-                subject_name varchar(20),
-                question varchar(1000),
-                answer varchar(1000)
-            )
-        '''
+        create_table_query = config.SQL_CREATE_JPKB
         try:
             self.cursor.execute(create_table_query)
             self.connection.commit()
@@ -45,8 +38,8 @@ class MySQLClient:
         try:
             data = pd.read_csv(csv_path)
             for _, row in data.iterrows():
-                insert_query = "insert into jpkb(subject_name, question, answer) values(%s, %s, %s)"
-                self.cursor.execute(insert_query, (row['学科名称'], row['问题'], row['答案']))
+                insert_query = config.SQL_INSERT_JPKB
+                self.cursor.execute(insert_query, (row['Subject'], row['Question'], row['Answer']))
             self.connection.commit()
             self.logger.info('MySQL data inserted successfully')
         except Exception as e:
@@ -56,7 +49,7 @@ class MySQLClient:
 
     def fetch_questions(self):
         try:
-            self.cursor.execute("select question from jpkb")
+            self.cursor.execute(config.SQL_SELECT_QUESTIONS)
             results = self.cursor.fetchall()
             self.logger.info('Data query succeeded')
             return results
@@ -66,7 +59,7 @@ class MySQLClient:
 
     def fetch_answer(self, question):
         try:
-            self.cursor.execute("select answer from jpkb where question=%s", (question,))
+            self.cursor.execute(config.SQL_SELECT_ANSWER, (question,))
             result = self.cursor.fetchone()
             return result[0] if result else None
         except pymysql.MySQLError as e:
