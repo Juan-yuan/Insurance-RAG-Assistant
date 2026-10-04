@@ -73,20 +73,13 @@ Deeper retrieval notes: [`RAG_README.md`](./RAG_README.md). CLI + stream wiring:
 
 All commands below assume you start from the `Insurance-RAG-Assistant/` directory.
 
-### 1. Create the Conda Environment
-
-```bash
-conda create -n edu_rag python==3.10.18
-conda activate edu_rag
-```
-
-### 2. Install Dependencies
+### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Start Milvus, Redis, and Attu
+### 2. Start Milvus, Redis, and Attu
 
 Docker Compose starts **Attu v2.4.12** (GUI for Milvus 2.4.x) with the rest of the stack.
 
@@ -132,7 +125,7 @@ cd milvus_redis
 docker compose down
 ```
 
-### 4. Open Attu and Connect to Milvus
+### 3. Open Attu and Connect to Milvus
 
 Open the Attu port from your private runtime configuration.
 
@@ -142,9 +135,9 @@ If the page still shows email/password, hard-refresh the browser (`Cmd+Shift+R`)
 
 <p><img src="./images/attu_ui.png" alt="attu connect ui" width="700" /></p>
 
-### 5. Test Milvus and Redis from Python
+### 4. Test Milvus and Redis from Python
 
-Stay in the `edu_rag` environment. From `Insurance-RAG-Assistant/`:
+From `Insurance-RAG-Assistant/`:
 
 ```bash
 python milvus_redis/test_milvus.py
@@ -161,7 +154,7 @@ Redis value: Hello, Redis!
 
 The test script reads the Milvus and Redis connection settings from the private runtime configuration.
 
-### 6. Access Attu from Another Device on the Same Network (Optional)
+### 5. Access Attu from Another Device on the Same Network (Optional)
 
 This is only needed if you want to open Attu from a phone or another computer. On a Mac, get this machine's LAN IP:
 
@@ -171,13 +164,13 @@ ipconfig getifaddr en0
 
 Then open the Attu port on that address. The Connect address in Attu stays the Docker-network Milvus address from the private runtime configuration.
 
-### 7. Milvus schema
+### 6. Milvus schema
 
 Collections are filtered by `source`: `clause` (policy language), `medical` (bills / guidelines), `case` (historical adjudications).
 
 <p><img src="./images/milvus.png" alt="milvus schema" width="700" /></p>
 
-### 8. Run the Insurance Assistant UI
+### 7. Run the Insurance Assistant UI
 
 <p><img src="./images/ui_system_design.png.png" alt="Insurance Assistant System Design" width="700" /></p>
 

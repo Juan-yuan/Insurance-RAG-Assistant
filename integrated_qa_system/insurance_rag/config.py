@@ -19,7 +19,7 @@ class Config:
         self.LOG_DIR = os.path.join(self.PROJECT_ROOT, 'logs')
         self.DATA_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/data')
         self.MODELS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/models')
-        self.EDU_DOCUMENT_LOADERS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/edu_document_loaders')
+        self.INSURANCE_DOCUMENT_LOADERS_DIR = os.path.join(self.PROJECT_ROOT, 'rag_qa/insurance_document_loaders')
         self.MYSQL_HOST = require_env('MYSQL_HOST')
         self.MYSQL_USER = require_env('MYSQL_USER')
         self.MYSQL_PASSWORD = require_env('MYSQL_PASSWORD')

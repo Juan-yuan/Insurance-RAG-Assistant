@@ -13,8 +13,8 @@ Code:
 - `integrated_qa_system/main_history_stream_version.py` (Version 2 CLI)
 - `integrated_qa_system/rag_qa/core/document_processor.py`
 - `integrated_qa_system/rag_qa/core/vector_store.py`
-- `integrated_qa_system/rag_qa/edu_text_spliter/`
-- `integrated_qa_system/rag_qa/edu_document_loaders/`
+- `integrated_qa_system/rag_qa/insurance_text_spliter/`
+- `integrated_qa_system/rag_qa/insurance_document_loaders/`
 
 <p><img src="./images/rag_system_design.png" alt="RAG system design" width="700" /></p>
 
@@ -55,7 +55,7 @@ Why I chose these sizes:
 - Parent chunks stay large enough that rerank and generation see a full subsection, not half a sentence. The sizes are private runtime settings.
 - Overlap keeps sentences on the window edge aligned across adjacent children.
 
-`.md` uses `MarkdownTextSplitter`. Everything else uses `EduRecursiveTextSplitter`. The recursive splitter walks paragraph → sentence → clause → comma until something actually cuts, then collapses extra blank lines. Separators stay in the chunk (`keep_separator=True`), so sentence punctuation is not stripped.
+`.md` uses `MarkdownTextSplitter`. Everything else uses `InsuranceRecursiveTextSplitter`. The recursive splitter walks paragraph → sentence → clause → comma until something actually cuts, then collapses extra blank lines. Separators stay in the chunk (`keep_separator=True`), so sentence punctuation is not stripped.
 
 `AliTextSplitter` is in the package and not wired into the main path. Semantic splits follow paragraph boundaries better, but they pull in a BERT and are slow on CPU. Claims files currently use rule-based splits; semantic split is a spare option.
 <p><img src="./images/db_2.png" alt="parent child chunking" width="700" /></p>
