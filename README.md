@@ -53,18 +53,6 @@ adjuster query
   → INSERT the turn into MySQL `conversations` (`session_id`)
 ```
 
-Code:
-
-- `integrated_qa_system/rag_qa/core/query_classifier.py`
-- `integrated_qa_system/rag_qa/core/strategy_selector.py`
-- `integrated_qa_system/rag_qa/core/prompts.py`
-- `integrated_qa_system/rag_qa/core/memory.py`
-- `integrated_qa_system/rag_qa/core/rag_system.py`
-- `integrated_qa_system/rag_qa/core/document_processor.py`
-- `integrated_qa_system/rag_qa/core/vector_store.py`
-- `integrated_qa_system/app.py`
-- `integrated_qa_system/main_history_stream_version.py`
-
 Deeper retrieval notes: [`RAG_README.md`](./RAG_README.md). CLI + stream wiring: [`INTEGRATION_README.md`](./INTEGRATION_README.md).
 
 ---
