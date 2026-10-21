@@ -104,6 +104,6 @@ embeddings/
 docker-compose.override.yml
 
 # =========================
-# Local AI models
+# Private RAG implementation
 # =========================
-integrated_qa_system/rag_qa/models/
+integrated_qa_system/rag_qa/
